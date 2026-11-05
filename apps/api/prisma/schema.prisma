@@ -1,0 +1,139 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  PLATFORM_ADMIN
+  MANAGER
+  CLIENT
+}
+
+enum Direction {
+  IN
+  OUT
+}
+
+enum Sender {
+  CONTACT
+  BOT
+  HUMAN
+}
+
+model User {
+  id            String       @id @default(cuid())
+  email         String       @unique
+  name          String
+  passwordHash  String
+  role          Role         @default(CLIENT)
+  totpSecretEnc String?
+  totpEnabled   Boolean      @default(false)
+  createdAt     DateTime     @default(now())
+  memberships   Membership[]
+}
+
+// Cliente (ou pessoa em uso individual) = 1 workspace
+model Workspace {
+  id                String   @id @default(cuid())
+  name              String
+  clientEmail       String?
+  instagram         String?
+  evolutionInstance String?  @unique
+  aiEnabled         Boolean  @default(false)
+  aiProvider        String   @default("anthropic") // anthropic | openai
+  aiModel           String   @default("claude-sonnet-4-6")
+  aiPrompt          String   @default("Você é um atendente simpático. Descubra o nome, o telefone e o interesse da pessoa e use a ferramenta salvar_lead quando tiver os três.")
+  leadDestination   String?
+  leadTemplate      String?
+  monthlyAiLimit    Int      @default(2000)
+  monthlyMsgLimit   Int      @default(5000)
+  createdAt         DateTime @default(now())
+  members           Membership[]
+  contacts          Contact[]
+  credentials       AiCredential[]
+  usage             UsageCounter[]
+}
+
+// Gestor ou dono do cliente vinculado ao workspace
+model Membership {
+  userId      String
+  workspaceId String
+  user        User      @relation(fields: [userId], references: [id])
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  @@id([userId, workspaceId])
+}
+
+// Chave de IA do próprio usuário (BYOK), sempre criptografada
+model AiCredential {
+  id          String    @id @default(cuid())
+  workspaceId String
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  provider    String
+  label       String
+  keyEnc      String
+  last4       String
+  createdAt   DateTime  @default(now())
+}
+
+// Conexões da plataforma (Evolution, Redis...) editáveis pelo admin geral
+model Integration {
+  id        String   @id @default(cuid())
+  type      String   // EVOLUTION | REDIS | OTHER
+  name      String
+  configEnc String   // JSON criptografado
+  active    Boolean  @default(true)
+  createdAt DateTime @default(now())
+}
+
+model AuditLog {
+  id          String   @id @default(cuid())
+  userId      String?
+  workspaceId String?
+  action      String
+  ip          String?
+  meta        Json?
+  createdAt   DateTime @default(now())
+  @@index([workspaceId, createdAt])
+}
+
+model UsageCounter {
+  id          String    @id @default(cuid())
+  workspaceId String
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  month       String    // 2026-11
+  aiCalls     Int       @default(0)
+  messages    Int       @default(0)
+  @@unique([workspaceId, month])
+}
+
+model Contact {
+  id          String    @id @default(cuid())
+  workspaceId String
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  jid         String
+  phone       String?
+  name        String?
+  interest    String?
+  tags        String[]
+  leadSentAt  DateTime?
+  botPaused   Boolean   @default(false)
+  createdAt   DateTime  @default(now())
+  messages    Message[]
+  @@unique([workspaceId, jid])
+}
+
+model Message {
+  id         String    @id @default(cuid())
+  contactId  String
+  contact    Contact   @relation(fields: [contactId], references: [id], onDelete: Cascade)
+  direction  Direction
+  sender     Sender
+  text       String
+  externalId String?
+  createdAt  DateTime  @default(now())
+  @@index([contactId, createdAt])
+}
