@@ -10,11 +10,17 @@ export default function Login() {
 
   async function submit(e: React.FormEvent) {
     e.preventDefault(); setBusy(true); setErr("");
-    const res = await fetch("/api/login", { method: "POST", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ email: f.email, password: f.password, totp: f.totp || undefined }) });
-    const d = await res.json(); setBusy(false);
-    if (!res.ok) return setErr(d.error ?? "falha no login");
-    r.push(d.precisaAtivar2FA ? "/2fa" : d.role === "PLATFORM_ADMIN" ? "/admin" : "/inbox");
+    try {
+      const res = await fetch("/api/login", { method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: f.email, password: f.password, totp: f.totp || undefined }) });
+      const d = await res.json().catch(() => ({}));
+      if (!res.ok) { setErr(d.error ?? "falha no login"); return; }
+      r.push(d.precisaAtivar2FA ? "/2fa" : d.role === "PLATFORM_ADMIN" ? "/admin" : "/inbox");
+    } catch {
+      setErr("Sem conexão com o servidor.");
+    } finally {
+      setBusy(false);
+    }
   }
   const input = "w-full rounded-lg border border-zinc-300 bg-white px-3 py-2.5 text-sm outline-none focus:border-zinc-900";
   return (

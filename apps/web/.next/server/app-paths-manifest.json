@@ -1,4 +1,8 @@
 {
   "/login/page": "app/login/page.js",
-  "/api/login/route": "app/api/login/route.js"
+  "/2fa/page": "app/2fa/page.js",
+  "/api/p/[...path]/route": "app/api/p/[...path]/route.js",
+  "/api/logout/route": "app/api/logout/route.js",
+  "/api/login/route": "app/api/login/route.js",
+  "/(app)/admin/page": "app/(app)/admin/page.js"
 }
