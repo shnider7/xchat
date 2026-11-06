@@ -2,11 +2,31 @@ import argon2 from "argon2";
 import { authenticator } from "otplib";
 import { FastifyInstance } from "fastify";
 import { z } from "zod";
+import { config } from "../config";
 import { prisma } from "../db";
 import { audit, guard } from "../services/access";
 import { decrypt, encrypt } from "../services/crypto";
 
 export async function authRoutes(app: FastifyInstance) {
+  // O painel só mostra "Criar conta" quando o cadastro está ligado
+  app.get("/auth/config", async () => ({ signup: config.signupEnabled }));
+
+  // Cadastro aberto: cria SEMPRE um usuário CLIENT com o próprio workspace (nunca admin ou gestor)
+  app.post("/auth/register", { config: { rateLimit: { max: 3, timeWindow: "1 hour" } } }, async (req, reply) => {
+    if (!config.signupEnabled) return reply.code(403).send({ error: "cadastro desativado" });
+    const b = z.object({ name: z.string().min(2).max(80), email: z.string().email(), password: z.string().min(12).max(128) }).parse(req.body);
+    const email = b.email.toLowerCase();
+    if (await prisma.user.findUnique({ where: { email } })) return reply.code(409).send({ error: "não foi possível criar a conta com esses dados" });
+    const u = await prisma.user.create({
+      data: {
+        email, name: b.name, role: "CLIENT", passwordHash: await argon2.hash(b.password, { type: argon2.argon2id }),
+        memberships: { create: { workspace: { create: { name: b.name } } } },
+      },
+    });
+    await prisma.auditLog.create({ data: { userId: u.id, action: "conta.criada", ip: req.ip } });
+    return { ok: true };
+  });
+
   app.post("/auth/login", { config: { rateLimit: { max: 5, timeWindow: "1 minute" } } }, async (req, reply) => {
     const b = z.object({ email: z.string().email(), password: z.string(), totp: z.string().optional() }).parse(req.body);
     const u = await prisma.user.findUnique({ where: { email: b.email.toLowerCase() } });

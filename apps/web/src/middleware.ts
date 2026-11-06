@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
-// Sem cookie de sessão, qualquer página (exceto /login) volta para o login
+// Sem cookie de sessão, qualquer página (exceto login e cadastro) volta para o login
+const PUBLIC = ["/login", "/cadastro"];
 export function middleware(req: NextRequest) {
-  if (!req.cookies.get("token") && req.nextUrl.pathname !== "/login") {
+  if (!req.cookies.get("token") && !PUBLIC.includes(req.nextUrl.pathname)) {
     return NextResponse.redirect(new URL("/login", req.url));
   }
 }

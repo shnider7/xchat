@@ -3,6 +3,7 @@ import { FastifyInstance } from "fastify";
 import { config } from "../config";
 import { prisma } from "../db";
 import { runAgent } from "../services/ai";
+import { handleIncoming } from "../services/flow";
 import { sendText } from "../services/evolution";
 import { bump, getUsage } from "../services/usage";
 
@@ -36,9 +37,14 @@ export async function webhookRoutes(app: FastifyInstance) {
       await prisma.message.create({ data: { contactId: contact.id, direction: "IN", sender: "CONTACT", text, externalId: key.id } });
       await bump(ws.id, "messages");
 
-      if (!ws.aiEnabled || contact.botPaused || usage.aiCalls >= ws.monthlyAiLimit) return;
-      const answer = await runAgent(ws, contact.id);
-      if (answer) {
+      if (contact.botPaused) return;
+      // 1) chatbot (fluxo) ativo do cliente; 2) se não houver, a IA responde sozinha
+      let replies = await handleIncoming(ws, contact, text);
+      if (!replies && ws.aiEnabled && usage.aiCalls < ws.monthlyAiLimit) {
+        const a = await runAgent(ws, contact.id);
+        replies = a ? [a] : null;
+      }
+      for (const answer of replies ?? []) {
         await sendText(body.instance, key.remoteJid, answer);
         await prisma.message.create({ data: { contactId: contact.id, direction: "OUT", sender: "BOT", text: answer } });
         await bump(ws.id, "messages");

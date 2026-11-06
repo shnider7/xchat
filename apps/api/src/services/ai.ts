@@ -13,7 +13,7 @@ const schema = {
 };
 const TOOL_DESC = "Salva o lead quando já souber nome, telefone e interesse. Não chame antes de ter os três.";
 
-async function salvarLead(ws: Workspace, contactId: string, input: any) {
+export async function salvarLead(ws: Workspace, contactId: string, input: any) {
   const contact = await prisma.contact.update({
     where: { id: contactId },
     data: { name: input.nome, phone: input.telefone, interest: input.interesse, tags: { push: "lead-captado" }, leadSentAt: new Date() },

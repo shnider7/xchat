@@ -33,8 +33,8 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
       <div className="grid min-h-screen grid-cols-[220px_1fr]">
         <aside className="flex flex-col gap-1 border-r border-zinc-200 bg-white p-4">
           <div className="px-3 pb-4 text-lg font-semibold">ChatFlow</div>
-          {admin ? <>{item("/admin", "Visão geral")}{soon("Conexões")}{soon("Gestores")}</> :
-            <>{item("/inbox", "Inbox")}{soon("Contatos")}{soon("Fluxos")}{soon("Configurações")}</>}
+          {admin ? <>{item("/admin", "Visão geral")}{item("/gestores", "Gestores")}{soon("Conexões")}</> :
+            <>{item("/inbox", "Conversas")}{role === "MANAGER" && item("/clientes", "Clientes")}{item("/relatorios", "Relatórios")}{item("/ia", "IA e chatbot")}</>}
           <button onClick={sair} className="mt-auto rounded-lg px-3 py-2.5 text-left text-sm text-zinc-500 hover:bg-zinc-50">Sair</button>
         </aside>
         <div className="flex min-w-0 flex-col">

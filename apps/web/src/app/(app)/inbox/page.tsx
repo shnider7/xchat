@@ -1,10 +1,12 @@
 "use client";
 import { useEffect, useState } from "react";
 import { api } from "@/lib/api";
+import { inp } from "@/lib/ui";
 import { useWorkspace } from "@/lib/ws";
 
-type Contact = { id: string; name: string | null; phone: string | null; interest: string | null; tags: string[]; messages: { text: string }[] };
+type Contact = { id: string; name: string | null; phone: string | null; interest: string | null; tags: string[]; channel: string; messages: { text: string }[] };
 type Msg = { id: string; sender: "CONTACT" | "BOT" | "HUMAN"; text: string };
+const CANAIS: Record<string, string> = { WHATSAPP: "WhatsApp", INSTAGRAM_DM: "Direct do Instagram", INSTAGRAM_COMMENT: "Comentários do Instagram" };
 
 export default function Inbox() {
   const { current } = useWorkspace();
@@ -12,36 +14,44 @@ export default function Inbox() {
   const [open, setOpen] = useState<Contact | null>(null);
   const [msgs, setMsgs] = useState<Msg[]>([]);
   const [err, setErr] = useState("");
+  const [fl, setFl] = useState({ q: "", channel: "", lead: false, tag: "" });
 
-  // Troca de cliente: limpa tudo, para nunca misturar conversas de clientes diferentes
-  useEffect(() => {
+  useEffect(() => { // troca de cliente ou de filtro: recarrega, sem misturar conversas
     setContacts([]); setOpen(null); setMsgs([]); setErr("");
-    if (current) api<Contact[]>(`workspaces/${current.id}/contacts`).then(setContacts).catch((e) => setErr(e.message));
-  }, [current?.id]);
+    if (!current) return;
+    const qs = new URLSearchParams();
+    if (fl.q) qs.set("q", fl.q); if (fl.channel) qs.set("channel", fl.channel); if (fl.lead) qs.set("lead", "1"); if (fl.tag) qs.set("tag", fl.tag);
+    const t = setTimeout(() => api<Contact[]>(`workspaces/${current.id}/contacts?${qs}`).then(setContacts).catch((e) => setErr(e.message)), 300);
+    return () => clearTimeout(t);
+  }, [current?.id, fl.q, fl.channel, fl.lead, fl.tag]);
 
-  useEffect(() => {
-    setMsgs([]);
-    if (open) api<Msg[]>(`contacts/${open.id}/messages`).then(setMsgs).catch((e) => setErr(e.message));
-  }, [open?.id]);
+  useEffect(() => { setMsgs([]); if (open) api<Msg[]>(`contacts/${open.id}/messages`).then(setMsgs).catch((e) => setErr(e.message)); }, [open?.id]);
 
   if (!current) return <p className="p-8 text-sm text-zinc-500">Selecione um cliente no topo para ver as conversas.</p>;
-
   return (
-    <div className="grid h-[calc(100vh-61px)] grid-cols-[320px_1fr_260px]">
-      <section className="overflow-y-auto border-r border-zinc-200 bg-white">
-        <div className="border-b border-zinc-200 p-4 text-xs text-zinc-500">Conversas de {current.name} · {contacts.length}</div>
-        {err && <p className="p-4 text-sm text-red-600">{err}</p>}
-        {contacts.map((c) => (
-          <button key={c.id} onClick={() => setOpen(c)} className={`block w-full border-b border-zinc-100 p-4 text-left ${open?.id === c.id ? "bg-zinc-50" : ""}`}>
-            <div className="text-sm font-medium">{c.name ?? c.phone}</div>
-            <div className="mt-1 truncate text-xs text-zinc-500">{c.messages[0]?.text ?? "—"}</div>
-          </button>))}
-        {!contacts.length && !err && <p className="p-4 text-sm text-zinc-400">Nenhuma conversa ainda.</p>}
+    <div className="grid h-[calc(100vh-61px)] grid-cols-[340px_1fr_260px]">
+      <section className="flex flex-col overflow-hidden border-r border-zinc-200 bg-white">
+        <div className="space-y-2 border-b border-zinc-200 p-3">
+          <input className={inp} placeholder="Buscar nome, telefone ou texto" value={fl.q} onChange={(e) => setFl({ ...fl, q: e.target.value })} />
+          <select className={inp} value={fl.channel} onChange={(e) => setFl({ ...fl, channel: e.target.value })}>
+            <option value="">Todos os canais</option>{Object.entries(CANAIS).map(([v, l]) => <option key={v} value={v}>{l}</option>)}</select>
+          <input className={inp} placeholder="Filtrar por tag" value={fl.tag} onChange={(e) => setFl({ ...fl, tag: e.target.value })} />
+          <label className="flex items-center gap-2 text-sm text-zinc-600"><input type="checkbox" checked={fl.lead} onChange={(e) => setFl({ ...fl, lead: e.target.checked })} /> Só leads captados</label>
+        </div>
+        <div className="border-b border-zinc-100 px-4 py-2 text-xs text-zinc-500">{current.name} · {contacts.length} resultado(s)</div>
+        <div className="flex-1 overflow-y-auto">
+          {err && <p className="p-4 text-sm text-red-600">{err}</p>}
+          {contacts.map((c) => (
+            <button key={c.id} onClick={() => setOpen(c)} className={`block w-full border-b border-zinc-100 p-4 text-left ${open?.id === c.id ? "bg-zinc-50" : ""}`}>
+              <div className="flex justify-between text-sm"><b className="font-medium">{c.name ?? c.phone}</b><span className="text-xs text-zinc-400">{CANAIS[c.channel]}</span></div>
+              <div className="mt-1 truncate text-xs text-zinc-500">{c.messages[0]?.text ?? "—"}</div>
+            </button>))}
+          {!contacts.length && !err && <p className="p-4 text-sm text-zinc-400">Nada encontrado.</p>}
+        </div>
       </section>
       <section className="flex flex-col gap-3 overflow-y-auto p-6">
-        {open ? msgs.map((m) => (
-          <div key={m.id} className={`max-w-[70%] rounded-xl px-4 py-2.5 text-sm ${m.sender === "CONTACT" ? "self-start border border-zinc-200 bg-white" : "self-end bg-zinc-900 text-white"}`}>{m.text}</div>
-        )) : <p className="text-sm text-zinc-400">Escolha uma conversa.</p>}
+        {open ? msgs.map((m) => <div key={m.id} className={`max-w-[70%] rounded-xl px-4 py-2.5 text-sm ${m.sender === "CONTACT" ? "self-start border border-zinc-200 bg-white" : "self-end bg-zinc-900 text-white"}`}>{m.text}</div>)
+          : <p className="text-sm text-zinc-400">Escolha uma conversa.</p>}
       </section>
       <aside className="space-y-3 border-l border-zinc-200 bg-white p-5 text-sm">
         <b>Contato</b>

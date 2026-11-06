@@ -13,5 +13,6 @@ export const config = {
   webhookSecret: need("WEBHOOK_SECRET"),
   evolutionUrl: process.env.EVOLUTION_URL ?? "",
   evolutionKey: process.env.EVOLUTION_API_KEY ?? "",
+  signupEnabled: process.env.SIGNUP_ENABLED === "true",
   maxRps: Number(process.env.MAX_RPS ?? 20),
 };

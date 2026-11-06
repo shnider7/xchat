@@ -24,6 +24,12 @@ enum Sender {
   HUMAN
 }
 
+enum Channel {
+  WHATSAPP
+  INSTAGRAM_DM
+  INSTAGRAM_COMMENT
+}
+
 model User {
   id            String       @id @default(cuid())
   email         String       @unique
@@ -56,6 +62,8 @@ model Workspace {
   contacts          Contact[]
   credentials       AiCredential[]
   usage             UsageCounter[]
+  chatbots    Chatbot[]
+  channels    ChannelConnection[]
 }
 
 // Gestor ou dono do cliente vinculado ao workspace
@@ -121,8 +129,11 @@ model Contact {
   tags        String[]
   leadSentAt  DateTime?
   botPaused   Boolean   @default(false)
+  channel     Channel   @default(WHATSAPP)
   createdAt   DateTime  @default(now())
   messages    Message[]
+  chatbotId   String?
+  flowState   Json?
   @@unique([workspaceId, jid])
 }
 
@@ -136,4 +147,27 @@ model Message {
   externalId String?
   createdAt  DateTime  @default(now())
   @@index([contactId, createdAt])
+}
+
+model Chatbot {
+  id          String    @id @default(cuid())
+  workspaceId String
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  name        String
+  trigger     String?
+  active      Boolean   @default(true)
+  nodes       Json
+  createdAt   DateTime  @default(now())
+}
+
+model ChannelConnection {
+  id          String    @id @default(cuid())
+  workspaceId String
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  type        String
+  externalId  String
+  label       String
+  tokenEnc    String
+  createdAt   DateTime  @default(now())
+  @@unique([workspaceId, type, externalId])
 }

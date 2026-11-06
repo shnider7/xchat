@@ -1,0 +1,5 @@
+-- CreateEnum
+CREATE TYPE "Channel" AS ENUM ('WHATSAPP', 'INSTAGRAM_DM', 'INSTAGRAM_COMMENT');
+
+-- AlterTable
+ALTER TABLE "Contact" ADD COLUMN     "channel" "Channel" NOT NULL DEFAULT 'WHATSAPP';

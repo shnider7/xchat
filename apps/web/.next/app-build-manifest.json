@@ -11,20 +11,30 @@
       "static/css/app/layout.css",
       "static/chunks/app/layout.js"
     ],
-    "/2fa/page": [
+    "/cadastro/page": [
       "static/chunks/webpack.js",
       "static/chunks/main-app.js",
-      "static/chunks/app/2fa/page.js"
+      "static/chunks/app/cadastro/page.js"
     ],
-    "/(app)/admin/page": [
+    "/(app)/inbox/page": [
       "static/chunks/webpack.js",
       "static/chunks/main-app.js",
-      "static/chunks/app/(app)/admin/page.js"
+      "static/chunks/app/(app)/inbox/page.js"
     ],
     "/(app)/layout": [
       "static/chunks/webpack.js",
       "static/chunks/main-app.js",
       "static/chunks/app/(app)/layout.js"
+    ],
+    "/(app)/relatorios/page": [
+      "static/chunks/webpack.js",
+      "static/chunks/main-app.js",
+      "static/chunks/app/(app)/relatorios/page.js"
+    ],
+    "/(app)/ia/page": [
+      "static/chunks/webpack.js",
+      "static/chunks/main-app.js",
+      "static/chunks/app/(app)/ia/page.js"
     ]
   }
 }

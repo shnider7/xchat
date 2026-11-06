@@ -17,6 +17,9 @@ export async function adminRoutes(app: FastifyInstance) {
     return { id: u.id, email: u.email };
   });
 
+  app.get("/admin/managers", pre, () =>
+    prisma.user.findMany({ where: { role: "MANAGER" }, select: { id: true, email: true, name: true, totpEnabled: true, createdAt: true }, orderBy: { createdAt: "desc" } }));
+
   app.get("/admin/metrics", pre, async () => ({
     workspaces: await prisma.workspace.count(),
     gestores: await prisma.user.count({ where: { role: "MANAGER" } }),

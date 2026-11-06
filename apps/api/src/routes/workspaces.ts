@@ -48,12 +48,48 @@ export async function workspaceRoutes(app: FastifyInstance) {
     return prisma.workspace.update({ where: { id }, data });
   });
 
-  // Chats: sempre de UM workspace por vez, com auditoria
+  // Chats: sempre de UM workspace por vez, com filtros e auditoria
   app.get("/workspaces/:id/contacts", pre, async (req) => {
     const { id } = req.params as { id: string };
     await assertWorkspace(req, id);
-    await audit(req, "chats.listados", id);
-    return prisma.contact.findMany({ where: { workspaceId: id }, orderBy: { createdAt: "desc" }, include: { messages: { orderBy: { createdAt: "desc" }, take: 1 } } });
+    const f = z.object({
+      q: z.string().optional(), lead: z.string().optional(), tag: z.string().optional(),
+      channel: z.enum(["WHATSAPP", "INSTAGRAM_DM", "INSTAGRAM_COMMENT"]).optional(),
+    }).parse(req.query);
+    await audit(req, "chats.listados", id, { filtros: Object.keys(f) });
+    return prisma.contact.findMany({
+      where: {
+        workspaceId: id,
+        ...(f.channel && { channel: f.channel }),
+        ...(f.lead === "1" && { leadSentAt: { not: null } }),
+        ...(f.tag && { tags: { has: f.tag } }),
+        ...(f.q && { OR: [
+          { name: { contains: f.q, mode: "insensitive" } }, { phone: { contains: f.q } },
+          { messages: { some: { text: { contains: f.q, mode: "insensitive" } } } },
+        ] }),
+      },
+      orderBy: { createdAt: "desc" }, take: 200,
+      include: { messages: { orderBy: { createdAt: "desc" }, take: 1 } },
+    });
+  });
+
+  // Relatório de conversas do período
+  app.get("/workspaces/:id/report", pre, async (req) => {
+    const { id } = req.params as { id: string };
+    await assertWorkspace(req, id);
+    const days = Math.min(Number((req.query as any).days ?? 30) || 30, 90);
+    const since = new Date(Date.now() - days * 864e5);
+    const [contatos, leads, porTipo, porDia] = await Promise.all([
+      prisma.contact.count({ where: { workspaceId: id, createdAt: { gte: since } } }),
+      prisma.contact.count({ where: { workspaceId: id, leadSentAt: { gte: since } } }),
+      prisma.message.groupBy({ by: ["sender"], where: { contact: { workspaceId: id }, createdAt: { gte: since } }, _count: true }),
+      prisma.$queryRaw<{ dia: Date; total: bigint }[]>`SELECT date_trunc('day', m."createdAt") AS dia, count(*) AS total FROM "Message" m JOIN "Contact" c ON c.id = m."contactId" WHERE c."workspaceId" = ${id} AND m."createdAt" >= ${since} GROUP BY 1 ORDER BY 1`,
+    ]);
+    return {
+      dias: days, contatos, leads,
+      mensagens: Object.fromEntries(porTipo.map((b) => [b.sender, b._count])),
+      porDia: porDia.map((r) => ({ dia: r.dia.toISOString().slice(0, 10), total: Number(r.total) })),
+    };
   });
 
   app.get("/contacts/:id/messages", pre, async (req) => {

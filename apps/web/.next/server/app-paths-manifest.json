@@ -1,8 +1,9 @@
 {
   "/login/page": "app/login/page.js",
-  "/2fa/page": "app/2fa/page.js",
-  "/api/p/[...path]/route": "app/api/p/[...path]/route.js",
-  "/api/logout/route": "app/api/logout/route.js",
+  "/cadastro/page": "app/cadastro/page.js",
   "/api/login/route": "app/api/login/route.js",
-  "/(app)/admin/page": "app/(app)/admin/page.js"
+  "/api/p/[...path]/route": "app/api/p/[...path]/route.js",
+  "/(app)/ia/page": "app/(app)/ia/page.js",
+  "/(app)/inbox/page": "app/(app)/inbox/page.js",
+  "/(app)/relatorios/page": "app/(app)/relatorios/page.js"
 }
