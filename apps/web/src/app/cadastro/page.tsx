@@ -1,6 +1,7 @@
 "use client";
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
+import PasswordInput from "@/lib/PasswordInput";
 
 export default function Cadastro() {
   const r = useRouter();
@@ -29,7 +30,7 @@ export default function Cadastro() {
         {open === false && <p className="text-sm text-red-600">O cadastro está desativado no momento.</p>}
         <label className="block text-sm text-zinc-600">Nome<input className={input} required minLength={2} value={f.name} onChange={(e) => setF({ ...f, name: e.target.value })} /></label>
         <label className="block text-sm text-zinc-600">Email<input className={input} type="email" required value={f.email} onChange={(e) => setF({ ...f, email: e.target.value })} /></label>
-        <label className="block text-sm text-zinc-600">Senha (mínimo 12 caracteres)<input className={input} type="password" required minLength={12} value={f.password} onChange={(e) => setF({ ...f, password: e.target.value })} /></label>
+        <label className="block text-sm text-zinc-600">Senha (mínimo 12 caracteres)<PasswordInput className={input} required minLength={12} value={f.password} onChange={(e) => setF({ ...f, password: e.target.value })} /></label>
         {err && <p className="text-sm text-red-600">{err}</p>}
         <button disabled={busy || open === false} className="w-full rounded-lg bg-zinc-900 py-2.5 text-sm font-medium text-white disabled:opacity-50">{busy ? "Criando…" : "Criar conta"}</button>
         <p className="text-center text-sm text-zinc-600">Já tem conta? <a href="/login" className="font-medium text-zinc-900 underline">Entrar</a></p>

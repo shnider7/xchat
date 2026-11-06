@@ -14,6 +14,7 @@ export default function Chatbots({ ws }: { ws: Workspace }) {
   const [bots, setBots] = useState<Bot[]>([]);
   const [bot, setBot] = useState<Bot | null>(null);
   const [msg, setMsg] = useState("");
+  const [view, setView] = useState<"montar" | "testar">("montar");
   const [sim, setSim] = useState<any>({ state: { idx: 0, vars: {} }, log: [], history: [], input: "" });
   const load = useCallback(() => api<Bot[]>(`workspaces/${ws.id}/chatbots`).then(setBots).catch((e) => setMsg(e.message)), [ws.id]);
   useEffect(() => { setBot(null); load(); }, [load]);
@@ -41,8 +42,8 @@ export default function Chatbots({ ws }: { ws: Workspace }) {
   }
 
   return (
-    <div className="grid gap-6 p-8 lg:grid-cols-[1fr_340px]">
-      <div className="space-y-4">
+    <div className={"grid gap-6 p-8 " + (view === "testar" ? "mx-auto max-w-lg" : "lg:grid-cols-[1fr_340px]")}>
+      <div className={"space-y-4 " + (view === "testar" ? "hidden" : "")}>
         <div className="flex flex-wrap items-center gap-2">
           {bots.map((b) => <button key={b.id} className={b.id === bot?.id ? btn : btn2} onClick={() => { setBot(b); setSim({ state: { idx: 0, vars: {} }, log: [], history: [], input: "" }); }}>{b.name}{b.active ? "" : " (pausado)"}</button>)}
           <button className={btn2} onClick={() => setBot(novo())}>+ Novo chatbot</button>
@@ -89,11 +90,12 @@ export default function Chatbots({ ws }: { ws: Workspace }) {
         </>}
       </div>
       {bot && <div className={card + " flex h-fit flex-col gap-3"}>
-        <div className="flex items-center justify-between"><b className="text-sm">Testar</b><button className={btn2} onClick={() => testar(null, true)}>Iniciar / reiniciar</button></div>
+        <div className="flex items-center justify-between"><button className={btn2} onClick={() => setView(view === "testar" ? "montar" : "testar")}>{view === "testar" ? "← Voltar a montar" : "Abrir teste em tela cheia"}</button><button className={btn2} onClick={() => testar(null, true)}>Iniciar / reiniciar</button></div>
         <p className="text-xs text-zinc-500">Testa o que está na tela (mesmo sem salvar). Passos de IA usam a chave cadastrada em "IA e API".</p>
-        <div className="flex max-h-96 min-h-40 flex-col gap-2 overflow-y-auto rounded-lg bg-zinc-50 p-3">
+        <div className="flex max-h-[60vh] min-h-40 flex-col gap-2 overflow-y-auto rounded-lg bg-zinc-50 p-3">
           {sim.log.map((l: any, i: number) => <div key={i} className={`max-w-[85%] whitespace-pre-wrap rounded-xl px-3 py-2 text-sm ${l.me ? "self-end bg-zinc-900 text-white" : "border border-zinc-200 bg-white"}`}>{l.text}</div>)}
         </div>
+        <div className="rounded-lg bg-zinc-50 p-3 text-xs text-zinc-600"><b>Passo atual:</b> {sim.state.done ? "fim" : sim.state.idx + 1}<br /><b>Guardado:</b> {Object.keys(sim.state.vars).length ? Object.entries(sim.state.vars).map(([k, v]) => `${k}=${v}`).join(" · ") : "—"}</div>
         <form className="flex gap-2" onSubmit={(e) => { e.preventDefault(); if (sim.input.trim()) testar(sim.input.trim()); }}>
           <input className={inp} placeholder="Responder…" value={sim.input} onChange={(e) => setSim({ ...sim, input: e.target.value })} /><button className={btn}>Enviar</button>
         </form>

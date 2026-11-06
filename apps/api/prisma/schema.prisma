@@ -40,6 +40,11 @@ model User {
   totpEnabled   Boolean      @default(false)
   createdAt     DateTime     @default(now())
   memberships   Membership[]
+  username           String?  @unique
+  avatar             String?
+  plan               String   @default("TESTE")
+  planPeriod         String   @default("MENSAL")
+  subscriptionStatus String   @default("ATIVA")
 }
 
 // Cliente (ou pessoa em uso individual) = 1 workspace
@@ -64,6 +69,7 @@ model Workspace {
   usage             UsageCounter[]
   chatbots    Chatbot[]
   channels    ChannelConnection[]
+  invites     ManagerInvite[]
 }
 
 // Gestor ou dono do cliente vinculado ao workspace
@@ -170,4 +176,14 @@ model ChannelConnection {
   tokenEnc    String
   createdAt   DateTime  @default(now())
   @@unique([workspaceId, type, externalId])
+}
+
+model ManagerInvite {
+  id          String    @id @default(cuid())
+  workspaceId String
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  managerId   String
+  status      String    @default("PENDING")
+  createdAt   DateTime  @default(now())
+  @@unique([workspaceId, managerId])
 }

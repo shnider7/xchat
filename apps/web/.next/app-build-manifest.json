@@ -11,11 +11,6 @@
       "static/css/app/layout.css",
       "static/chunks/app/layout.js"
     ],
-    "/cadastro/page": [
-      "static/chunks/webpack.js",
-      "static/chunks/main-app.js",
-      "static/chunks/app/cadastro/page.js"
-    ],
     "/(app)/inbox/page": [
       "static/chunks/webpack.js",
       "static/chunks/main-app.js",
@@ -26,6 +21,11 @@
       "static/chunks/main-app.js",
       "static/chunks/app/(app)/layout.js"
     ],
+    "/(app)/leads/page": [
+      "static/chunks/webpack.js",
+      "static/chunks/main-app.js",
+      "static/chunks/app/(app)/leads/page.js"
+    ],
     "/(app)/relatorios/page": [
       "static/chunks/webpack.js",
       "static/chunks/main-app.js",
@@ -35,6 +35,16 @@
       "static/chunks/webpack.js",
       "static/chunks/main-app.js",
       "static/chunks/app/(app)/ia/page.js"
+    ],
+    "/(app)/perfil/page": [
+      "static/chunks/webpack.js",
+      "static/chunks/main-app.js",
+      "static/chunks/app/(app)/perfil/page.js"
+    ],
+    "/_not-found/page": [
+      "static/chunks/webpack.js",
+      "static/chunks/main-app.js",
+      "static/chunks/app/_not-found/page.js"
     ]
   }
 }

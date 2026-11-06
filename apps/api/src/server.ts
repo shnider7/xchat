@@ -9,6 +9,7 @@ import { adminRoutes } from "./routes/admin";
 import { channelRoutes } from "./routes/channels";
 import { chatbotRoutes } from "./routes/chatbots";
 import { authRoutes } from "./routes/auth";
+import { profileRoutes } from "./routes/profile";
 import { webhookRoutes } from "./routes/webhooks";
 import { workspaceRoutes } from "./routes/workspaces";
 
@@ -25,6 +26,7 @@ app.register(adminRoutes);
 app.register(workspaceRoutes);
 app.register(chatbotRoutes);
 app.register(channelRoutes);
+app.register(profileRoutes);
 app.register(webhookRoutes);
 
 app.listen({ port: config.port, host: "0.0.0.0" });

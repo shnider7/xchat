@@ -1,8 +1,8 @@
-// File: /workspaces/xchat/apps/web/src/app/cadastro/page.tsx
-import * as entry from '../../../../src/app/cadastro/page.js'
+// File: /workspaces/xchat/apps/web/src/app/(app)/leads/page.tsx
+import * as entry from '../../../../../src/app/(app)/leads/page.js'
 import type { ResolvingMetadata, ResolvingViewport } from 'next/dist/lib/metadata/types/metadata-interface.js'
 
-type TEntry = typeof import('../../../../src/app/cadastro/page.js')
+type TEntry = typeof import('../../../../../src/app/(app)/leads/page.js')
 
 // Check that the entry is a valid entry
 checkFields<Diff<{

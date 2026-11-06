@@ -29,7 +29,7 @@ export default function Inbox() {
 
   if (!current) return <p className="p-8 text-sm text-zinc-500">Selecione um cliente no topo para ver as conversas.</p>;
   return (
-    <div className="grid h-[calc(100vh-61px)] grid-cols-[340px_1fr_260px]">
+    <div className="grid h-full grid-cols-[340px_1fr_260px]">
       <section className="flex flex-col overflow-hidden border-r border-zinc-200 bg-white">
         <div className="space-y-2 border-b border-zinc-200 p-3">
           <input className={inp} placeholder="Buscar nome, telefone ou texto" value={fl.q} onChange={(e) => setFl({ ...fl, q: e.target.value })} />

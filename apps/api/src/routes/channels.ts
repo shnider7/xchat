@@ -20,6 +20,10 @@ export async function channelRoutes(app: FastifyInstance) {
     const { id } = req.params as { id: string };
     await assertWorkspace(req, id);
     const b = z.object({ igUserId: z.string().regex(/^\d{5,30}$/), accessToken: z.string().min(20).max(1000) }).parse(req.body);
+    // 1 Instagram por conta, e cada Instagram em uma única conta
+    const existing = await prisma.channelConnection.findFirst({ where: { type: "INSTAGRAM", OR: [
+      { workspaceId: id, NOT: { externalId: b.igUserId } }, { externalId: b.igUserId, NOT: { workspaceId: id } }] } });
+    if (existing) return reply.code(409).send({ error: "Cada conta pode ter apenas 1 Instagram, e cada Instagram só pode ficar em uma conta." });
     const r = await fetch(`${GRAPH}/${b.igUserId}?fields=username`, { headers: { Authorization: `Bearer ${b.accessToken}` } }).catch(() => null);
     if (!r?.ok) return reply.code(400).send({ error: "Não foi possível validar o ID e o token no Instagram." });
     const { username } = (await r.json()) as { username?: string };

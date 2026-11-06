@@ -27,10 +27,12 @@ export default function Canais({ ws }: { ws: Workspace }) {
         {list.filter((c) => c.type === "INSTAGRAM").map((c) => (
           <div key={c.id} className="flex items-center justify-between text-sm"><span>{c.label} · conectado</span>
             <button className={btn2} onClick={async () => { await api(`channels/${c.id}`, { method: "DELETE" }); load(); }}>Desconectar</button></div>))}
-        <p className="text-xs text-zinc-500">Conexão manual: precisa de uma conta profissional do Instagram ligada a uma Página do Facebook, e de um token de acesso gerado no app da Meta com as permissões de mensagens e comentários. O token é validado e guardado criptografado.</p>
+        <p className="text-xs text-zinc-500">Cada conta tem apenas 1 Instagram. Conexão manual: precisa de uma conta profissional do Instagram ligada a uma Página do Facebook, e de um token de acesso gerado no app da Meta com as permissões de mensagens e comentários. O token é validado e guardado criptografado.</p>
+        {!list.some((c) => c.type === "INSTAGRAM") && <>
         <input className={inp} placeholder="ID da conta do Instagram (só números)" value={f.igUserId} onChange={(e) => setF({ ...f, igUserId: e.target.value })} />
         <input className={inp} type="password" placeholder="Token de acesso" value={f.accessToken} onChange={(e) => setF({ ...f, accessToken: e.target.value })} />
         <button className={btn} onClick={conectar}>Conectar Instagram</button>{msg && <span className="ml-3 text-sm text-zinc-600">{msg}</span>}
+        </>}
         <p className="rounded-lg bg-zinc-100 p-3 text-xs text-zinc-600">O <b>recebimento</b> de directs e comentários ainda não está ligado: falta o webhook da Meta. A conexão fica salva e validada. O "Entrar com Facebook" para clientes depende de um app da Meta aprovado.</p>
       </div>
     </div>

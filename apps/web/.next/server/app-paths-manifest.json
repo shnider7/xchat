@@ -1,9 +1,11 @@
 {
+  "/_not-found/page": "app/_not-found/page.js",
   "/login/page": "app/login/page.js",
-  "/cadastro/page": "app/cadastro/page.js",
   "/api/login/route": "app/api/login/route.js",
   "/api/p/[...path]/route": "app/api/p/[...path]/route.js",
-  "/(app)/ia/page": "app/(app)/ia/page.js",
   "/(app)/inbox/page": "app/(app)/inbox/page.js",
-  "/(app)/relatorios/page": "app/(app)/relatorios/page.js"
+  "/(app)/leads/page": "app/(app)/leads/page.js",
+  "/(app)/relatorios/page": "app/(app)/relatorios/page.js",
+  "/(app)/ia/page": "app/(app)/ia/page.js",
+  "/(app)/perfil/page": "app/(app)/perfil/page.js"
 }

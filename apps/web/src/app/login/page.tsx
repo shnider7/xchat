@@ -1,6 +1,7 @@
 "use client";
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
+import PasswordInput from "@/lib/PasswordInput";
 
 export default function Login() {
   const r = useRouter();
@@ -35,7 +36,7 @@ export default function Login() {
         <label className="block text-sm text-zinc-600">Email
           <input className={input + " mt-1"} type="email" required value={f.email} onChange={(e) => setF({ ...f, email: e.target.value })} /></label>
         <label className="block text-sm text-zinc-600">Senha
-          <input className={input + " mt-1"} type="password" required value={f.password} onChange={(e) => setF({ ...f, password: e.target.value })} /></label>
+          <PasswordInput className={input + " mt-1"} required value={f.password} onChange={(e) => setF({ ...f, password: e.target.value })} /></label>
         <label className="block text-sm text-zinc-600">Código 2FA (se já ativou)
           <input className={input + " mt-1"} inputMode="numeric" maxLength={6} value={f.totp} onChange={(e) => setF({ ...f, totp: e.target.value })} /></label>
         {err && <p className="text-sm text-red-600">{err}</p>}
