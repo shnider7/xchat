@@ -3,6 +3,7 @@ import { FastifyInstance } from "fastify";
 import { z } from "zod";
 import { prisma } from "../db";
 import { audit, guard } from "../services/access";
+import { passwordRule } from "../services/password";
 import { clearEvolutionCache } from "../services/evolution";
 import { decrypt, encrypt } from "../services/crypto";
 
@@ -11,7 +12,7 @@ export async function adminRoutes(app: FastifyInstance) {
   const pre = { preHandler: guard(["PLATFORM_ADMIN"]) };
 
   app.post("/admin/managers", pre, async (req) => {
-    const b = z.object({ email: z.string().email(), name: z.string(), password: z.string().min(12) }).parse(req.body);
+    const b = z.object({ email: z.string().email(), name: z.string(), password: passwordRule }).parse(req.body);
     const u = await prisma.user.create({ data: { email: b.email.toLowerCase(), name: b.name, role: "MANAGER", passwordHash: await argon2.hash(b.password, { type: argon2.argon2id }) } });
     await audit(req, "gestor.criado", undefined, { managerId: u.id });
     return { id: u.id, email: u.email };

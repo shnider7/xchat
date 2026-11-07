@@ -91,7 +91,7 @@ export default function Conta() {
         <Sec title="Segurança">
           <div className="grid gap-3 md:grid-cols-2">
             <PasswordInput className={inp} placeholder="Senha atual" value={pw.current} onChange={(e) => setPw({ ...pw, current: e.target.value })} />
-            <PasswordInput className={inp} placeholder="Nova senha (12+ caracteres)" value={pw.next} onChange={(e) => setPw({ ...pw, next: e.target.value })} />
+            <PasswordInput className={inp} placeholder="Nova senha (8+, letra, número e símbolo)" value={pw.next} onChange={(e) => setPw({ ...pw, next: e.target.value })} />
           </div>
           <button className={btn2} onClick={() => run(() => api("me/password", { method: "POST", body: JSON.stringify(pw) }).then(() => setPw({ current: "", next: "" })), "Senha alterada.")}>Alterar senha</button>
         </Sec>

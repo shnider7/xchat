@@ -7,7 +7,7 @@ import { makeCtx, run, toGraph } from "../services/flow";
 const gnode = z.object({
   id: z.string().min(1).max(40), type: z.enum(["start", "message", "question", "condition", "action", "ai"]),
   position: z.object({ x: z.number(), y: z.number() }), data: z.record(z.any()),
-}).refine((n) => JSON.stringify(n.data).length < 6000, "passo grande demais");
+}).refine((n) => JSON.stringify(n.data).length < 16000, "passo grande demais");
 const graph = z.object({
   v: z.literal(2), nodes: z.array(gnode).max(80),
   edges: z.array(z.object({ id: z.string().max(120).optional(), source: z.string().max(40), sourceHandle: z.string().max(40).nullable().optional(), target: z.string().max(40) })).max(250),

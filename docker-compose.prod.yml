@@ -1,0 +1,16 @@
+# Produção na VPS. Os dois serviços ficam só em 127.0.0.1: quem publica na internet (com HTTPS)
+# é o proxy que você já usa (Nginx, Caddy, Traefik...). Veja docs/IMPLANTACAO.md
+services:
+  chatflow-api:
+    build: ./apps/api
+    restart: unless-stopped
+    env_file: ./apps/api/.env.production
+    ports: ["127.0.0.1:3333:3333"]
+    extra_hosts: ["host.docker.internal:host-gateway"]   # alcança Postgres/Redis publicados no próprio servidor
+  chatflow-web:
+    build: ./apps/web
+    restart: unless-stopped
+    environment:
+      API_URL: http://chatflow-api:3333
+    ports: ["127.0.0.1:3000:3000"]
+    depends_on: [chatflow-api]

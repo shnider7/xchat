@@ -20,7 +20,7 @@ export default function Gestores() {
       <form onSubmit={criar} className={card + " space-y-3"}>
         <input className={inp} placeholder="Nome" required value={f.name} onChange={(e) => setF({ ...f, name: e.target.value })} />
         <input className={inp} type="email" placeholder="Email" required value={f.email} onChange={(e) => setF({ ...f, email: e.target.value })} />
-        <input className={inp} type="password" placeholder="Senha (mínimo 12 caracteres)" minLength={12} required value={f.password} onChange={(e) => setF({ ...f, password: e.target.value })} />
+        <input className={inp} type="password" placeholder="Senha (8+, com letra, número e símbolo)" minLength={8} required value={f.password} onChange={(e) => setF({ ...f, password: e.target.value })} />
         <button className={btn}>Criar gestor</button>
         {msg && <p className="text-sm text-zinc-600">{msg}</p>}
       </form>

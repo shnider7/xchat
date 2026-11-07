@@ -92,6 +92,16 @@ export async function workspaceRoutes(app: FastifyInstance) {
     };
   });
 
+  // Assumir ou devolver a conversa ao bot/IA (botPaused = humano no controle)
+  app.patch("/contacts/:id", pre, async (req) => {
+    const { id } = req.params as { id: string };
+    const c = await prisma.contact.findUniqueOrThrow({ where: { id } });
+    await assertWorkspace(req, c.workspaceId);
+    const b = z.object({ botPaused: z.boolean().optional(), tags: z.array(z.string().max(40)).max(30).optional() }).parse(req.body);
+    await audit(req, b.botPaused === undefined ? "contato.editado" : b.botPaused ? "bot.pausado" : "bot.retomado", c.workspaceId, { contactId: id });
+    return prisma.contact.update({ where: { id }, data: b });
+  });
+
   app.get("/contacts/:id/messages", pre, async (req) => {
     const { id } = req.params as { id: string };
     const c = await prisma.contact.findUniqueOrThrow({ where: { id } });

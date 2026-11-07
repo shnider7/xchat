@@ -3,7 +3,7 @@ import { Workspace } from "@prisma/client";
 import { prisma } from "../db";
 import { decrypt } from "./crypto";
 import { sendText } from "./evolution";
-import { buildLeadCard } from "./leadCard";
+import { buildLeadCard, origemText } from "./leadCard";
 import { bump } from "./usage";
 
 const schema = {
@@ -19,7 +19,7 @@ export async function salvarLead(ws: Workspace, contactId: string, input: any) {
     data: { name: input.nome, phone: input.telefone, interest: input.interesse, tags: { push: "lead-captado" }, leadSentAt: new Date() },
   });
   if (ws.leadDestination && ws.evolutionInstance) {
-    await sendText(ws.evolutionInstance, ws.leadDestination, buildLeadCard({ ...input, contactId: contact.id }, ws.leadTemplate));
+    await sendText(ws.evolutionInstance, ws.leadDestination, buildLeadCard({ ...input, contactId: contact.id, origem: origemText(contact) }, ws.leadTemplate));
   }
   return "Lead salvo com sucesso.";
 }

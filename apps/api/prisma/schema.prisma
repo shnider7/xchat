@@ -140,6 +140,9 @@ model Contact {
   messages    Message[]
   chatbotId   String?
   flowState   Json?
+  source        String?
+  sourceDetail  String?
+  utm           Json?
   @@unique([workspaceId, jid])
 }
 

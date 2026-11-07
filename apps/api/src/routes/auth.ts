@@ -4,7 +4,11 @@ import { FastifyInstance } from "fastify";
 import { z } from "zod";
 import { config } from "../config";
 import { prisma } from "../db";
+import { createHash, randomBytes } from "crypto";
 import { redis } from "../plugins/security";
+import { sendMail } from "../services/mailer";
+import { passwordRule } from "../services/password";
+const sha = (s: string) => createHash("sha256").update(s).digest("hex");
 import { audit, guard } from "../services/access";
 import { decrypt, encrypt } from "../services/crypto";
 
@@ -15,7 +19,7 @@ export async function authRoutes(app: FastifyInstance) {
   // Cadastro aberto: cria SEMPRE um usuário CLIENT com o próprio workspace (nunca admin ou gestor)
   app.post("/auth/register", { config: { rateLimit: { max: 3, timeWindow: "1 hour" } } }, async (req, reply) => {
     if (!config.signupEnabled) return reply.code(403).send({ error: "cadastro desativado" });
-    const b = z.object({ name: z.string().min(2).max(80), email: z.string().email(), password: z.string().min(12).max(128) }).parse(req.body);
+    const b = z.object({ name: z.string().min(2).max(80), email: z.string().email(), password: passwordRule }).parse(req.body);
     const email = b.email.toLowerCase();
     if (await prisma.user.findUnique({ where: { email } })) return reply.code(409).send({ error: "não foi possível criar a conta com esses dados" });
     const u = await prisma.user.create({
@@ -44,6 +48,31 @@ export async function authRoutes(app: FastifyInstance) {
     const token = app.jwt.sign({ id: u.id, role: u.role, mfa: false });
     await prisma.auditLog.create({ data: { userId: u.id, action: "login.ok", ip: req.ip } });
     return { token, role: u.role, precisaAtivar2FA: u.role !== "CLIENT" && !u.totpEnabled };
+  });
+
+  // Recuperação de senha: a resposta é sempre a mesma, exista ou não o email
+  app.post("/auth/forgot", { config: { rateLimit: { max: 5, timeWindow: "1 hour" } } }, async (req) => {
+    const { email } = z.object({ email: z.string().email() }).parse(req.body);
+    const u = await prisma.user.findUnique({ where: { email: email.toLowerCase() } });
+    if (u) {
+      const token = randomBytes(32).toString("base64url");
+      await redis.set(`pwreset:${sha(token)}`, u.id, "EX", 1800);
+      const link = `${config.panelUrl}/redefinir?token=${token}`;
+      void sendMail(u.email, "Redefinir sua senha", `Olá, ${u.name}!\n\nUse este link (vale por 30 minutos) para criar uma nova senha:\n${link}\n\nSe não foi você, ignore este email.`).catch(() => {});
+      await prisma.auditLog.create({ data: { userId: u.id, action: "senha.recuperacao.pedida", ip: req.ip } });
+    }
+    return { ok: true };
+  });
+
+  app.post("/auth/reset", { config: { rateLimit: { max: 10, timeWindow: "1 hour" } } }, async (req, reply) => {
+    const b = z.object({ token: z.string().min(20).max(100), password: passwordRule }).parse(req.body);
+    const key = `pwreset:${sha(b.token)}`;
+    const id = await redis.get(key);
+    if (!id) return reply.code(400).send({ error: "Link inválido ou expirado. Peça um novo." });
+    await prisma.user.update({ where: { id }, data: { passwordHash: await argon2.hash(b.password, { type: argon2.argon2id }) } });
+    await redis.del(key);
+    await prisma.auditLog.create({ data: { userId: id, action: "senha.redefinida", ip: req.ip } });
+    return { ok: true };
   });
 
   // Etapa 2 do login: confere o código do app autenticador. Bloqueia após 5 erros em 10 minutos.

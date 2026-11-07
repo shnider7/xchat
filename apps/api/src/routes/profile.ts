@@ -3,6 +3,7 @@ import argon2 from "argon2";
 import { z } from "zod";
 import { prisma } from "../db";
 import { audit, guard } from "../services/access";
+import { passwordRule } from "../services/password";
 
 // Mensagem única para qualquer falha, para não revelar se um email existe na plataforma
 const GENERIC = "Não foi possível adicionar. Confirme se o email já tem conta na plataforma e se o Instagram dela está conectado.";
@@ -38,7 +39,7 @@ export async function profileRoutes(app: FastifyInstance) {
   });
 
   app.post("/me/password", { ...auth, config: { rateLimit: { max: 5, timeWindow: "15 minutes" } } }, async (req, reply) => {
-    const b = z.object({ current: z.string(), next: z.string().min(12).max(128) }).parse(req.body);
+    const b = z.object({ current: z.string(), next: passwordRule }).parse(req.body);
     const u = await prisma.user.findUniqueOrThrow({ where: { id: req.user.id } });
     if (!(await argon2.verify(u.passwordHash, b.current))) return reply.code(400).send({ error: "Senha atual incorreta." });
     await prisma.user.update({ where: { id: u.id }, data: { passwordHash: await argon2.hash(b.next, { type: argon2.argon2id }) } });

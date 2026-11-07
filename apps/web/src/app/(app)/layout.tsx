@@ -1,10 +1,12 @@
 "use client";
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { Suspense, useCallback, useEffect, useRef, useState } from "react";
+import { Suspense, useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { api, getRole } from "@/lib/api";
 import LiquidGlass from "@/lib/LiquidGlass";
 import { WorkspaceProvider, useWorkspace } from "@/lib/ws";
+
+const useIso = typeof window !== "undefined" ? useLayoutEffect : useEffect;
 
 const ICON: Record<string, React.ReactNode> = {
   chat: <path d="M7.9 20A9 9 0 1 0 4 16.1L2 22Z" />,
@@ -27,57 +29,69 @@ const SUB: Record<string, [string, string][]> = {
   "/ia": [["Chatbots", ""], ["IA e API", "aba=ia"], ["Canais", "aba=canais"]],
   "/perfil": [["Conta", ""], ["Instagram", "aba=instagram"], ["Gestão de usuários", "aba=gestao"]],
 };
+
+// Todas as opções ficam lado a lado. Só vira um menu que abre e fecha se realmente não couber.
 function SubMenu({ path, admin }: { path: string; admin: boolean }) {
   const sp = useSearchParams().toString();
   const [open, setOpen] = useState(false);
-  const ref = useRef<HTMLDivElement>(null);
-  useEffect(() => { setOpen(false); }, [path, sp]);
+  const [compact, setCompact] = useState(false);
+  const box = useRef<HTMLDivElement>(null);
+  const need = useRef(0);
+  const base = Object.keys(SUB).find((k) => path.startsWith(k));
+  useEffect(() => { need.current = 0; setCompact(false); setOpen(false); }, [path]);
+  useEffect(() => { setOpen(false); }, [sp]);
+  useIso(() => {
+    const el = box.current; if (!el) return;
+    const check = () => {
+      const nav = el.querySelector<HTMLElement>("[data-inline]");
+      if (nav) need.current = nav.scrollWidth;
+      setCompact(need.current > 0 && need.current > el.clientWidth);
+    };
+    check();
+    const ro = new ResizeObserver(check); ro.observe(el);
+    return () => ro.disconnect();
+  }, [path, compact]);
   useEffect(() => {
-    const close = (e: MouseEvent) => { if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false); };
+    const close = (e: MouseEvent) => { if (box.current && !box.current.contains(e.target as Node)) setOpen(false); };
     const esc = (e: KeyboardEvent) => { if (e.key === "Escape") setOpen(false); };
     document.addEventListener("mousedown", close); document.addEventListener("keydown", esc);
     return () => { document.removeEventListener("mousedown", close); document.removeEventListener("keydown", esc); };
   }, []);
-  const base = Object.keys(SUB).find((k) => path.startsWith(k));
-  if (!base || (admin && base === "/perfil")) return null;
+
+  if (!base || (admin && base === "/perfil")) return <div className="flex-1" />;
   const items = SUB[base];
   const cur = items.find(([, q]) => q === sp) ?? items[0];
   const href = (q: string) => (q ? `${base}?${q}` : base);
   return (
-    <div ref={ref} className="relative min-w-0">
-      {/* tela larga: abas na própria barra */}
-      <nav className="sub-inline items-center gap-1">
-        {items.map(([label, q]) => (
-          <Link key={label} href={href(q)} className={`pill whitespace-nowrap rounded-full px-3 py-1.5 text-xs ${sp === q ? "navon font-medium" : "opacity-60"}`}>{label}</Link>))}
-      </nav>
-      {/* tela estreita: vira um menu que abre e fecha */}
-      <div className="sub-drop">
-        <button onClick={() => setOpen(!open)} aria-expanded={open} aria-label="Abrir submenu" className="navon flex items-center gap-2 rounded-full px-3 py-1.5 text-xs font-medium">
-          <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M4 7h16M4 12h16M4 17h16" /></svg>
-          {cur[0]}
-          <svg viewBox="0 0 24 24" className={`h-3.5 w-3.5 transition-transform ${open ? "rotate-180" : ""}`} fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M6 9l6 6 6-6" /></svg>
-        </button>
-        {open && (
-          <div className="pop absolute left-0 top-full z-50 mt-2 w-56 space-y-1 rounded-2xl p-2">
-            {items.map(([label, q]) => (
-              <Link key={label} href={href(q)} className={`pill block rounded-xl px-3 py-2 text-sm ${sp === q ? "navon font-medium" : "opacity-80"}`}>{label}</Link>))}
-          </div>)}
-      </div>
+    <div ref={box} className="relative min-w-0 flex-1">
+      {!compact && (
+        <nav data-inline className="flex w-max items-center gap-1">
+          {items.map(([label, q]) => (
+            <Link key={label} href={href(q)} className={`pill whitespace-nowrap rounded-full px-3 py-1.5 text-xs ${sp === q ? "navon font-medium" : "opacity-60"}`}>{label}</Link>))}
+        </nav>)}
+      {compact && (
+        <>
+          <button onClick={() => setOpen(!open)} aria-expanded={open} className="navon flex items-center gap-2 rounded-full px-3 py-1.5 text-xs font-medium">
+            {cur[0]}
+            <svg viewBox="0 0 24 24" className={`h-3.5 w-3.5 transition-transform ${open ? "rotate-180" : ""}`} fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M6 9l6 6 6-6" /></svg>
+          </button>
+          {open && (
+            <div className="pop absolute left-0 top-full z-50 mt-2 w-56 space-y-1 rounded-2xl p-2">
+              {items.map(([label, q]) => <Link key={label} href={href(q)} className={`pill block rounded-xl px-3 py-2 text-sm ${sp === q ? "navon font-medium" : "opacity-80"}`}>{label}</Link>)}
+            </div>)}
+        </>)}
     </div>
   );
 }
 
+// Só aparece quando há 2 ou mais contas; com uma só, ela já vem selecionada e nada é mostrado
 function Selector() {
-  const { list, current, loaded, select } = useWorkspace();
-  if (!loaded) return null;
-  if (list.length === 0) return <span className="text-sm opacity-60">Nenhuma conta vinculada. Adicione em Perfil.</span>;
-  if (list.length === 1) return <span className="text-sm font-medium">{list[0].name}</span>;
+  const { list, current, select } = useWorkspace();
+  if (list.length < 2) return null;
   return (
-    <label className="flex items-center gap-3 text-sm opacity-90">Cliente
-      <select value={current?.id ?? ""} onChange={(e) => select(e.target.value)} className="min-w-[240px] rounded-lg border border-zinc-300 bg-white/60 px-3 py-2 text-sm">
-        <option value="">Selecione um cliente…</option>{list.map((w) => <option key={w.id} value={w.id}>{w.name}</option>)}
-      </select>
-    </label>
+    <select value={current?.id ?? ""} onChange={(e) => select(e.target.value)} aria-label="Cliente" className="min-w-[200px] rounded-full border border-black/10 bg-white/40 px-4 py-1.5 text-sm dark:border-white/15 dark:bg-white/5">
+      <option value="">Selecione um cliente…</option>{list.map((w) => <option key={w.id} value={w.id}>{w.name}</option>)}
+    </select>
   );
 }
 
@@ -110,7 +124,9 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
         <aside className={`glass glass-refract flex shrink-0 flex-col rounded-3xl p-3 transition-[width] duration-300 ${collapsed ? "w-[76px]" : "w-60"}`}>
           <div className={`flex items-center py-3 ${collapsed ? "justify-center" : "justify-between px-2"}`}>
             {!collapsed && <span className="text-lg font-semibold">ChatFlow</span>}
-            <button onClick={toggleSb} aria-label={collapsed ? "Expandir menu" : "Recolher menu"} className="rounded-lg px-2 py-1 text-sm opacity-70 hover:opacity-100"><svg viewBox="0 0 24 24" className={`h-4 w-4 transition-transform ${collapsed ? "rotate-180" : ""}`} fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="m11 17-5-5 5-5M18 17l-5-5 5-5" /></svg></button>
+            <button onClick={toggleSb} aria-label={collapsed ? "Expandir menu" : "Recolher menu"} className="rounded-lg px-2 py-1 opacity-70 hover:opacity-100">
+              <svg viewBox="0 0 24 24" className={`h-4 w-4 transition-transform ${collapsed ? "rotate-180" : ""}`} fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="m11 17-5-5 5-5M18 17l-5-5 5-5" /></svg>
+            </button>
           </div>
           <nav className="flex flex-col gap-1">
             {nav.map(([href, label, icon]) => (
@@ -122,14 +138,11 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
         </aside>
         <div className="flex min-w-0 flex-1 flex-col gap-3">
           <header className="topbar relative z-30 glass glass-refract flex h-14 shrink-0 items-center gap-4 rounded-2xl px-5">
-            {admin ? <span className="text-sm opacity-60">Administração da plataforma</span> : <Selector />}
-            <Suspense fallback={null}><SubMenu path={path} admin={admin} /></Suspense>
-            <div className="ml-auto flex items-center gap-3">
-              
-              <Link href="/perfil" title={me?.name ?? "Perfil"} className="flex h-9 w-9 items-center justify-center overflow-hidden rounded-full border border-zinc-300 bg-white/50 text-sm font-medium">
-                {me?.avatar ? <img src={me.avatar} alt="" className="h-full w-full object-cover" /> : (me?.name?.[0]?.toUpperCase() ?? "?")}
-              </Link>
-            </div>
+            {!admin && <Selector />}
+            <Suspense fallback={<div className="flex-1" />}><SubMenu path={path} admin={admin} /></Suspense>
+            <Link href="/perfil" title={me?.name ?? "Perfil"} className="flex h-9 w-9 shrink-0 items-center justify-center overflow-hidden rounded-full border border-black/10 bg-white/40 text-sm font-medium dark:border-white/15 dark:bg-white/10">
+              {me?.avatar ? <img src={me.avatar} alt="" className="h-full w-full object-cover" /> : (me?.name?.[0]?.toUpperCase() ?? "?")}
+            </Link>
           </header>
           <main className="page glass min-h-0 flex-1 overflow-y-auto rounded-3xl">{children}</main>
         </div>
