@@ -14,8 +14,15 @@ export async function POST(req: NextRequest) {
   }
   const data = await res.json().catch(() => ({}));
   if (!res.ok) return NextResponse.json({ error: data.error ?? "falha no login" }, { status: res.status });
-  const out = NextResponse.json({ role: data.role, precisaAtivar2FA: data.precisaAtivar2FA });
   const base = { sameSite: "strict" as const, secure: process.env.NODE_ENV === "production", path: "/", maxAge: 900 };
+
+  // 2FA ativo: guarda o bilhete em cookie httpOnly (5 min) e pede o código
+  if (data.need2fa) {
+    const out = NextResponse.json({ need2fa: true });
+    out.cookies.set("ticket", data.ticket, { ...base, httpOnly: true, maxAge: 300 });
+    return out;
+  }
+  const out = NextResponse.json({ role: data.role, precisaAtivar2FA: data.precisaAtivar2FA });
   out.cookies.set("token", data.token, { ...base, httpOnly: true });
   out.cookies.set("role", data.role, base);
   return out;

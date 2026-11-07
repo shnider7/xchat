@@ -15,6 +15,8 @@ export async function webhookRoutes(app: FastifyInstance) {
     const secret = String(req.headers["x-webhook-secret"] ?? "");
     if (!same(secret, config.webhookSecret)) return reply.code(401).send({ error: "não autorizado" });
     reply.send({ ok: true });
+    // WhatsApp (Evolution) é só para enviar avisos: mensagens recebidas são ignoradas, a menos que WHATSAPP_INBOUND=true
+    if (process.env.WHATSAPP_INBOUND !== "true") return;
 
     try {
       const body: any = req.body;

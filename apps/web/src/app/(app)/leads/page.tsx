@@ -1,5 +1,6 @@
 "use client";
-import { useEffect, useMemo, useState } from "react";
+import { Suspense, useEffect, useMemo, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import { api } from "@/lib/api";
 import { btn2, card, inp } from "@/lib/ui";
 import { useWorkspace } from "@/lib/ws";
@@ -12,7 +13,7 @@ const COLS: [string, string, (c: any) => string][] = [
 ];
 const DENS: Record<string, string> = { compacta: "py-1.5", normal: "py-3", confortável: "py-5" };
 
-export default function Leads() {
+function LeadsInner() {
   const { current } = useWorkspace();
   const [rows, setRows] = useState<any[]>([]);
   const [q, setQ] = useState("");
@@ -20,6 +21,8 @@ export default function Leads() {
   const [dens, setDens] = useState("normal");
   const [open, setOpen] = useState(false);
   const [err, setErr] = useState("");
+  const p = useSearchParams().get("p");
+  const since = p === "hoje" ? new Date().setHours(0, 0, 0, 0) : p === "7" || p === "30" ? Date.now() - Number(p) * 864e5 : 0;
 
   useEffect(() => { try { const s = JSON.parse(localStorage.getItem("leadCols") ?? "null"); if (Array.isArray(s)) setVis(s); } catch {} }, []);
   useEffect(() => {
@@ -28,7 +31,7 @@ export default function Leads() {
   }, [current?.id]);
 
   const cols = COLS.filter(([k]) => vis.includes(k));
-  const shown = useMemo(() => rows.filter((c) => !q || cols.concat(COLS as any).some(([, , g]) => g(c).toLowerCase().includes(q.toLowerCase()))), [rows, q, vis]);
+  const shown = useMemo(() => rows.filter((c) => !since || new Date(c.leadSentAt).getTime() >= since).filter((c) => !q || cols.concat(COLS as any).some(([, , g]) => g(c).toLowerCase().includes(q.toLowerCase()))), [rows, q, vis, since]);
   const toggle = (k: string) => { const n = vis.includes(k) ? vis.filter((x) => x !== k) : [...vis, k]; setVis(n); localStorage.setItem("leadCols", JSON.stringify(n)); };
   function csv() {
     const esc = (s: string) => `"${s.replace(/"/g, '""')}"`;
@@ -61,3 +64,5 @@ export default function Leads() {
     </div>
   );
 }
+
+export default function Leads() { return <Suspense fallback={null}><LeadsInner /></Suspense>; }

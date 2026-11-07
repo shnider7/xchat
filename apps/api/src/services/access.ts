@@ -11,6 +11,7 @@ export const guard = (roles?: RoleName[], allowNoMfa = false) =>
   async (req: FastifyRequest, reply: FastifyReply) => {
     try { await req.jwtVerify(); } catch { return reply.code(401).send({ error: "não autenticado" }); }
     const u = req.user;
+    if ((u as any).purpose) return reply.code(401).send({ error: "não autenticado" }); // bilhete de 2FA não vale como sessão
     if (roles && !roles.includes(u.role)) return reply.code(403).send({ error: "sem permissão" });
     if (u.role !== "CLIENT" && !u.mfa && !allowNoMfa) return reply.code(403).send({ error: "2FA obrigatório" });
   };

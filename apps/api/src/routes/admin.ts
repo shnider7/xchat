@@ -20,6 +20,33 @@ export async function adminRoutes(app: FastifyInstance) {
   app.get("/admin/managers", pre, () =>
     prisma.user.findMany({ where: { role: "MANAGER" }, select: { id: true, email: true, name: true, totpEnabled: true, createdAt: true }, orderBy: { createdAt: "desc" } }));
 
+  // Visão geral com séries por dia (30 dias). Só números agregados: o admin nunca vê clientes nem conversas.
+  const rows = (r: { dia: Date; total: bigint }[]) => r.map((x) => ({ dia: x.dia.toISOString().slice(0, 10), total: Number(x.total) }));
+  app.get("/admin/overview", pre, async () => {
+    const since = new Date(Date.now() - 30 * 864e5), since7 = new Date(Date.now() - 7 * 864e5);
+    const month = new Date().toISOString().slice(0, 7);
+    const [roles, subs, novos, ativos, msgs, act7, usage, workspaces] = await Promise.all([
+      prisma.user.groupBy({ by: ["role"], _count: true }),
+      prisma.user.groupBy({ by: ["subscriptionStatus"], where: { role: "CLIENT" }, _count: true }),
+      prisma.$queryRaw<{ dia: Date; total: bigint }[]>`SELECT date_trunc('day', "createdAt") AS dia, count(*) AS total FROM "User" WHERE "createdAt" >= ${since} GROUP BY 1 ORDER BY 1`,
+      prisma.$queryRaw<{ dia: Date; total: bigint }[]>`SELECT date_trunc('day', "createdAt") AS dia, count(DISTINCT "userId") AS total FROM "AuditLog" WHERE action = 'login.ok' AND "createdAt" >= ${since} GROUP BY 1 ORDER BY 1`,
+      prisma.$queryRaw<{ dia: Date; total: bigint }[]>`SELECT date_trunc('day', "createdAt") AS dia, count(*) AS total FROM "Message" WHERE "createdAt" >= ${since} GROUP BY 1 ORDER BY 1`,
+      prisma.auditLog.findMany({ where: { action: "login.ok", createdAt: { gte: since7 }, userId: { not: null } }, distinct: ["userId"], select: { userId: true } }),
+      prisma.usageCounter.aggregate({ where: { month }, _sum: { aiCalls: true, messages: true } }),
+      prisma.workspace.count(),
+    ]);
+    const n = (role: string) => roles.find((r) => r.role === role)?._count ?? 0;
+    const sub = (st: string) => subs.find((x) => x.subscriptionStatus === st)?._count ?? 0;
+    const precoPlano = Number(process.env.PLAN_PRICE_BRL ?? 49);
+    return {
+      kpis: { contas: n("CLIENT"), gestores: n("MANAGER"), workspaces, ativos7d: act7.length, mrr: sub("ATIVA") * precoPlano, precoPlano },
+      ativos: rows(ativos), novos: rows(novos), mensagens: rows(msgs),
+      porTipo: [{ name: "Contas", value: n("CLIENT") }, { name: "Gestores", value: n("MANAGER") }, { name: "Admins", value: n("PLATFORM_ADMIN") }],
+      assinaturas: [{ name: "Ativas", value: sub("ATIVA") }, { name: "Canceladas", value: sub("CANCELADA") }],
+      ia: { chamadas: usage._sum.aiCalls ?? 0, mensagens: usage._sum.messages ?? 0 },
+    };
+  });
+
   app.get("/admin/metrics", pre, async () => ({
     workspaces: await prisma.workspace.count(),
     gestores: await prisma.user.count({ where: { role: "MANAGER" } }),

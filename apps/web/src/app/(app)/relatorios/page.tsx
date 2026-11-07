@@ -1,12 +1,16 @@
 "use client";
-import { useEffect, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import { api } from "@/lib/api";
+import { DonutChart, LineChart, fillDays } from "@/lib/charts";
 import { card } from "@/lib/ui";
 import { useWorkspace } from "@/lib/ws";
 
-export default function Relatorios() {
+// O período (7, 30 ou 90 dias) vem do submenu da barra superior: ?dias=7
+function Inner() {
   const { current } = useWorkspace();
-  const [days, setDays] = useState(30);
+  const d = Number(useSearchParams().get("dias") ?? 30);
+  const days = [7, 30, 90].includes(d) ? d : 30;
   const [r, setR] = useState<any>(null);
   const [err, setErr] = useState("");
   useEffect(() => {
@@ -14,28 +18,25 @@ export default function Relatorios() {
     if (current) api(`workspaces/${current.id}/report?days=${days}`).then(setR).catch((e) => setErr(e.message));
   }, [current?.id, days]);
 
-  if (!current) return <p className="p-8 text-sm text-zinc-500">Selecione um cliente no topo para ver o relatório.</p>;
-  const stat = (l: string, v: any) => <div className={card}><div className="text-xs text-zinc-500">{l}</div><div className="mt-1 text-2xl font-semibold">{v ?? 0}</div></div>;
-  const max = Math.max(1, ...(r?.porDia ?? []).map((d: any) => d.total));
+  if (!current) return <p className="p-8 text-sm opacity-60">Selecione um cliente no topo para ver o relatório.</p>;
+  const m = r?.mensagens ?? {};
+  const serie = r ? fillDays(r.porDia, days) : { labels: [], data: [] };
+  const kpi = (l: string, v: any) => <div className={card + " lift !p-5"}><div className="text-xs opacity-60">{l}</div><div className="mt-1 text-2xl font-semibold">{v ?? 0}</div></div>;
   return (
-    <div className="max-w-4xl space-y-6 p-8">
-      <div className="flex items-center justify-between">
-        <h1 className="text-lg font-semibold">Relatório · {current.name}</h1>
-        <select value={days} onChange={(e) => setDays(Number(e.target.value))} className="rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm">
-          <option value={7}>7 dias</option><option value={30}>30 dias</option><option value={90}>90 dias</option></select>
+    <div className="space-y-4 p-8">
+      <h1 className="text-lg font-semibold">Relatório · {current.name}</h1>
+      {err && <p className="text-sm text-red-500">{err}</p>}
+      <div className="kpis">
+        {kpi("Contatos novos", r?.contatos)}{kpi("Leads enviados", r?.leads)}{kpi("Msgs do contato", m.CONTACT)}{kpi("Msgs do bot", m.BOT)}
       </div>
-      {err && <p className="text-sm text-red-600">{err}</p>}
-      <div className="grid grid-cols-5 gap-4">
-        {stat("Contatos novos", r?.contatos)}{stat("Leads enviados", r?.leads)}
-        {stat("Msgs do contato", r?.mensagens?.CONTACT)}{stat("Msgs do bot", r?.mensagens?.BOT)}{stat("Msgs humanas", r?.mensagens?.HUMAN)}
-      </div>
-      <div className={card + " space-y-2"}>
-        <div className="text-sm font-medium">Mensagens por dia</div>
-        {(r?.porDia ?? []).map((d: any) => (
-          <div key={d.dia} className="flex items-center gap-3 text-xs"><span className="w-20 text-zinc-500">{d.dia}</span>
-            <div className="h-3 rounded bg-zinc-900" style={{ width: `${(d.total / max) * 100}%` }} /><span>{d.total}</span></div>))}
-        {r && !r.porDia.length && <p className="text-sm text-zinc-400">Sem mensagens no período.</p>}
-      </div>
+      {r && (
+        <div className="dash-2">
+          <div className={card}><div className="mb-3 text-sm font-medium">Mensagens por dia</div>
+            <LineChart labels={serie.labels} series={[{ name: "Mensagens", color: "#f97316", data: serie.data }]} /></div>
+          <div className={card}><div className="mb-3 text-sm font-medium">Quem respondeu</div>
+            <DonutChart center="mensagens" data={[{ name: "Contato", value: m.CONTACT ?? 0 }, { name: "Bot", value: m.BOT ?? 0 }, { name: "Humano", value: m.HUMAN ?? 0 }]} /></div>
+        </div>)}
     </div>
   );
 }
+export default function Relatorios() { return <Suspense fallback={null}><Inner /></Suspense>; }

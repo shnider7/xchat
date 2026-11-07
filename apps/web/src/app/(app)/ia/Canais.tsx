@@ -19,8 +19,8 @@ export default function Canais({ ws }: { ws: Workspace }) {
   return (
     <div className="max-w-3xl space-y-6 p-8">
       <div className={card + " space-y-2"}>
-        <div className="text-sm font-medium">WhatsApp</div>
-        <p className="text-sm text-zinc-600">Conectado pela Evolution API. Informe o nome da instância na aba <b>IA e API</b>. O QR code pelo painel ainda será feito.</p>
+        <div className="text-sm font-medium">WhatsApp (Evolution API)</div>
+        <p className="text-sm text-zinc-600">Usado só para enviar avisos pela Evolution (como os leads captados). Não é um canal de conversas. Informe o nome da instância na aba <b>IA e API</b>.</p>
       </div>
       <div className={card + " space-y-4"}>
         <div className="text-sm font-medium">Instagram</div>

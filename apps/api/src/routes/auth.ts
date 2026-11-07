@@ -4,6 +4,7 @@ import { FastifyInstance } from "fastify";
 import { z } from "zod";
 import { config } from "../config";
 import { prisma } from "../db";
+import { redis } from "../plugins/security";
 import { audit, guard } from "../services/access";
 import { decrypt, encrypt } from "../services/crypto";
 
@@ -35,12 +36,33 @@ export async function authRoutes(app: FastifyInstance) {
       await prisma.auditLog.create({ data: { action: "login.falha", ip: req.ip, meta: { email: b.email } } });
       return reply.code(401).send({ error: "credenciais inválidas" });
     }
-    if (u.totpEnabled && (!b.totp || !authenticator.check(b.totp, decrypt(u.totpSecretEnc!)))) {
-      return reply.code(401).send({ error: "código 2FA inválido" });
+    if (u.totpEnabled) {
+      // 2FA ativo: a senha sozinha não abre a sessão. Devolve um bilhete curto para a etapa do código.
+      await prisma.auditLog.create({ data: { userId: u.id, action: "login.senha_ok", ip: req.ip } });
+      return { need2fa: true, ticket: app.jwt.sign({ id: u.id, purpose: "2fa" }, { expiresIn: "5m" }) };
     }
-    const token = app.jwt.sign({ id: u.id, role: u.role, mfa: u.totpEnabled });
+    const token = app.jwt.sign({ id: u.id, role: u.role, mfa: false });
     await prisma.auditLog.create({ data: { userId: u.id, action: "login.ok", ip: req.ip } });
     return { token, role: u.role, precisaAtivar2FA: u.role !== "CLIENT" && !u.totpEnabled };
+  });
+
+  // Etapa 2 do login: confere o código do app autenticador. Bloqueia após 5 erros em 10 minutos.
+  app.post("/auth/2fa", { config: { rateLimit: { max: 10, timeWindow: "1 minute" } } }, async (req, reply) => {
+    const b = z.object({ ticket: z.string(), code: z.string().regex(/^\d{6}$/) }).parse(req.body);
+    let t: any;
+    try { t = app.jwt.verify(b.ticket); } catch { return reply.code(401).send({ error: "Sessão expirada. Entre de novo." }); }
+    if (t.purpose !== "2fa") return reply.code(401).send({ error: "Sessão expirada. Entre de novo." });
+    const key = `2fa:fail:${t.id}`;
+    if (Number((await redis.get(key)) ?? 0) >= 5) return reply.code(429).send({ error: "Muitas tentativas. Aguarde alguns minutos." });
+    const u = await prisma.user.findUnique({ where: { id: t.id } });
+    if (!u || !u.totpEnabled || !u.totpSecretEnc || !authenticator.check(b.code, decrypt(u.totpSecretEnc))) {
+      await redis.incr(key); await redis.expire(key, 600);
+      await prisma.auditLog.create({ data: { userId: t.id, action: "2fa.falha", ip: req.ip } });
+      return reply.code(401).send({ error: "Código inválido." });
+    }
+    await redis.del(key);
+    await prisma.auditLog.create({ data: { userId: u.id, action: "login.ok", ip: req.ip } });
+    return { token: app.jwt.sign({ id: u.id, role: u.role, mfa: true }), role: u.role, precisaAtivar2FA: false };
   });
 
   // 1) gera o segredo e devolve a URL para o app autenticador (QR no front)

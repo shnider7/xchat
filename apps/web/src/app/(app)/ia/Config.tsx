@@ -38,7 +38,7 @@ export default function Config() {
           <label className={lab}>Modelo<input className={inp} value={f.aiModel} onChange={set("aiModel")} /></label>
         </div>
         <label className={lab}>Instruções padrão da IA (base para os chatbots e para respostas automáticas)<textarea rows={5} className={inp} value={f.aiPrompt} onChange={set("aiPrompt")} /></label>
-        <label className={lab}>Instância da Evolution<input className={inp} value={f.evolutionInstance ?? ""} onChange={set("evolutionInstance")} /></label>
+        <label className={lab}>Instância da Evolution (só envia avisos de lead; não recebe conversas)<input className={inp} value={f.evolutionInstance ?? ""} onChange={set("evolutionInstance")} /></label>
         <label className={lab}>Destino dos leads (número ou grupo @g.us)<input className={inp} value={f.leadDestination ?? ""} onChange={set("leadDestination")} /></label>
         <label className={lab}>Modelo do cartão de lead ({"{nome} {telefone} {interesse} {data} {link}"})<textarea rows={4} className={inp} value={f.leadTemplate ?? ""} onChange={set("leadTemplate")} /></label>
         <button onClick={salvar} className={btn}>Salvar</button>{msg && <span className="ml-3 text-sm text-zinc-600">{msg}</span>}

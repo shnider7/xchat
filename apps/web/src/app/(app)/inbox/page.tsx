@@ -1,5 +1,6 @@
 "use client";
-import { useEffect, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import { api } from "@/lib/api";
 import { inp } from "@/lib/ui";
 import { useWorkspace } from "@/lib/ws";
@@ -8,13 +9,15 @@ type Contact = { id: string; name: string | null; phone: string | null; interest
 type Msg = { id: string; sender: "CONTACT" | "BOT" | "HUMAN"; text: string };
 const CANAIS: Record<string, string> = { WHATSAPP: "WhatsApp", INSTAGRAM_DM: "Direct do Instagram", INSTAGRAM_COMMENT: "Comentários do Instagram" };
 
-export default function Inbox() {
+function InboxInner() {
+  const sp = useSearchParams();
   const { current } = useWorkspace();
   const [contacts, setContacts] = useState<Contact[]>([]);
   const [open, setOpen] = useState<Contact | null>(null);
   const [msgs, setMsgs] = useState<Msg[]>([]);
   const [err, setErr] = useState("");
   const [fl, setFl] = useState({ q: "", channel: "", lead: false, tag: "" });
+  useEffect(() => { setFl((f) => ({ ...f, channel: sp.get("canal") ?? "", lead: sp.get("lead") === "1" })); }, [sp]);
 
   useEffect(() => { // troca de cliente ou de filtro: recarrega, sem misturar conversas
     setContacts([]); setOpen(null); setMsgs([]); setErr("");
@@ -29,12 +32,12 @@ export default function Inbox() {
 
   if (!current) return <p className="p-8 text-sm text-zinc-500">Selecione um cliente no topo para ver as conversas.</p>;
   return (
-    <div className="grid h-full grid-cols-[340px_1fr_260px]">
-      <section className="flex flex-col overflow-hidden border-r border-zinc-200 bg-white">
+    <div className="inbox" data-open={open ? "1" : "0"}>
+      <section className="inbox-list flex flex-col overflow-hidden border-r border-zinc-200 bg-white">
         <div className="space-y-2 border-b border-zinc-200 p-3">
           <input className={inp} placeholder="Buscar nome, telefone ou texto" value={fl.q} onChange={(e) => setFl({ ...fl, q: e.target.value })} />
           <select className={inp} value={fl.channel} onChange={(e) => setFl({ ...fl, channel: e.target.value })}>
-            <option value="">Todos os canais</option>{Object.entries(CANAIS).map(([v, l]) => <option key={v} value={v}>{l}</option>)}</select>
+            <option value="">Todos os canais</option>{Object.entries(CANAIS).filter(([v]) => v !== "WHATSAPP").map(([v, l]) => <option key={v} value={v}>{l}</option>)}</select>
           <input className={inp} placeholder="Filtrar por tag" value={fl.tag} onChange={(e) => setFl({ ...fl, tag: e.target.value })} />
           <label className="flex items-center gap-2 text-sm text-zinc-600"><input type="checkbox" checked={fl.lead} onChange={(e) => setFl({ ...fl, lead: e.target.checked })} /> Só leads captados</label>
         </div>
@@ -49,11 +52,17 @@ export default function Inbox() {
           {!contacts.length && !err && <p className="p-4 text-sm text-zinc-400">Nada encontrado.</p>}
         </div>
       </section>
-      <section className="flex flex-col gap-3 overflow-y-auto p-6">
+      <section className="inbox-chat flex flex-col gap-3 overflow-y-auto p-6">
+        {open && (
+          <div className="flex flex-wrap items-center gap-2 border-b border-zinc-200 pb-3 text-sm">
+            <button className="back rounded-lg border border-zinc-300 bg-white/60 px-2.5 py-1 text-xs" onClick={() => setOpen(null)}>← Voltar</button>
+            <b className="font-medium">{open.name ?? open.phone}</b>
+            <span className="opacity-60">{[open.phone, open.interest].filter(Boolean).join(" · ")}</span>
+          </div>)}
         {open ? msgs.map((m) => <div key={m.id} className={`max-w-[70%] rounded-xl px-4 py-2.5 text-sm ${m.sender === "CONTACT" ? "self-start border border-zinc-200 bg-white" : "self-end bg-zinc-900 text-white"}`}>{m.text}</div>)
           : <p className="text-sm text-zinc-400">Escolha uma conversa.</p>}
       </section>
-      <aside className="space-y-3 border-l border-zinc-200 bg-white p-5 text-sm">
+      <aside className="inbox-info space-y-3 border-l border-zinc-200 bg-white p-5 text-sm">
         <b>Contato</b>
         {open ? <>
           <div><div className="text-xs text-zinc-500">Nome</div>{open.name ?? "—"}</div>
@@ -65,3 +74,5 @@ export default function Inbox() {
     </div>
   );
 }
+
+export default function Inbox() { return <Suspense fallback={null}><InboxInner /></Suspense>; }
