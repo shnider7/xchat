@@ -11,6 +11,8 @@ import { channelRoutes } from "./routes/channels";
 import { chatbotRoutes } from "./routes/chatbots";
 import { authRoutes } from "./routes/auth";
 import { profileRoutes } from "./routes/profile";
+import { aiModelRoutes } from "./routes/aimodels";
+import { instagramWebhookRoutes } from "./routes/instagram";
 import { webhookRoutes } from "./routes/webhooks";
 import { workspaceRoutes } from "./routes/workspaces";
 
@@ -38,5 +40,7 @@ app.register(chatbotRoutes);
 app.register(channelRoutes);
 app.register(profileRoutes);
 app.register(webhookRoutes);
+app.register(instagramWebhookRoutes);
+app.register(aiModelRoutes);
 
 app.listen({ port: config.port, host: "0.0.0.0" });

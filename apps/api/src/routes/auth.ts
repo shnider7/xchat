@@ -22,12 +22,9 @@ export async function authRoutes(app: FastifyInstance) {
     const b = z.object({ name: z.string().min(2).max(80), email: z.string().email(), password: passwordRule }).parse(req.body);
     const email = b.email.toLowerCase();
     if (await prisma.user.findUnique({ where: { email } })) return reply.code(409).send({ error: "não foi possível criar a conta com esses dados" });
-    const u = await prisma.user.create({
-      data: {
-        email, name: b.name, role: "CLIENT", passwordHash: await argon2.hash(b.password, { type: argon2.argon2id }),
-        memberships: { create: { workspace: { create: { name: b.name } } } },
-      },
-    });
+    // Conta nova nasce DESATIVADA: o admin libera manualmente. Ela já ganha o próprio espaço de trabalho.
+    const u = await prisma.user.create({ data: { email, name: b.name, role: "CLIENT", active: false, passwordHash: await argon2.hash(b.password, { type: argon2.argon2id }) } });
+    await prisma.workspace.create({ data: { name: b.name, ownerId: u.id, members: { create: { userId: u.id } } } });
     await prisma.auditLog.create({ data: { userId: u.id, action: "conta.criada", ip: req.ip } });
     return { ok: true };
   });
@@ -47,7 +44,7 @@ export async function authRoutes(app: FastifyInstance) {
     }
     const token = app.jwt.sign({ id: u.id, role: u.role, mfa: false });
     await prisma.auditLog.create({ data: { userId: u.id, action: "login.ok", ip: req.ip } });
-    return { token, role: u.role, precisaAtivar2FA: u.role !== "CLIENT" && !u.totpEnabled };
+    return { token, role: u.role, precisaAtivar2FA: u.role === "PLATFORM_ADMIN" && !u.totpEnabled };
   });
 
   // Recuperação de senha: a resposta é sempre a mesma, exista ou não o email

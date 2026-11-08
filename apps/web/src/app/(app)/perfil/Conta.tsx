@@ -4,6 +4,7 @@ import { useRouter } from "next/navigation";
 import { api } from "@/lib/api";
 import PasswordInput from "@/lib/PasswordInput";
 import { btn, btn2, card, inp } from "@/lib/ui";
+import Consumo from "./Consumo";
 
 const PERIODOS: Record<string, string> = { MENSAL: "mensal", TRIMESTRAL: "trimestral", SEMESTRAL: "semestral", ANUAL: "anual" };
 const ROLE: Record<string, string> = { MANAGER: "Gestor", CLIENT: "Conta", PLATFORM_ADMIN: "Admin" };
@@ -69,7 +70,7 @@ export default function Conta() {
         <div><div className="font-semibold">{me.name}</div><div className="text-sm opacity-60">{me.username ? `@${me.username}` : me.email}</div></div>
         <div className="flex flex-wrap justify-center gap-1.5 text-[11px]">
           <span className="chip">{ROLE[me.role]}</span>
-          <span className="chip">{me.subscriptionStatus === "CANCELADA" ? "Assinatura cancelada" : `Teste · ${PERIODOS[me.planPeriod] ?? me.planPeriod}`}</span>
+          {me.role !== "PLATFORM_ADMIN" && <span className="chip">{me.subscriptionStatus === "CANCELADA" ? "Assinatura cancelada" : me.activeUntil ? `Acesso até ${new Date(me.activeUntil).toLocaleDateString("pt-BR")}` : `Plano ${PERIODOS[me.planPeriod] ?? me.planPeriod}`}</span>}
         </div>
       </aside>
 
@@ -82,13 +83,15 @@ export default function Conta() {
           <div className="flex items-center justify-between gap-3"><span className="truncate text-xs opacity-60">{me.email}</span>
             <button className={btn} onClick={() => run(() => patch({ name: f.name, username: f.username || null }), "Dados salvos.")}>Salvar</button></div>
         </Sec>
-        <Sec title="Plano">
+        {me.role !== "PLATFORM_ADMIN" && <Sec title="Plano">
           <div className="flex items-center justify-between gap-3 text-sm">
             <span className="opacity-80">Período de teste, sem cobrança ainda</span>
             {me.subscriptionStatus !== "CANCELADA" && <button className={btn2} onClick={() => { if (confirm("Cancelar a assinatura?")) run(() => api("me/subscription", { method: "DELETE" }), "Assinatura cancelada."); }}>Cancelar</button>}
           </div>
-        </Sec>
+        </Sec>}
+        {me.role !== "PLATFORM_ADMIN" && <Consumo />}
         <Sec title="Segurança">
+          {me.role !== "PLATFORM_ADMIN" && <div className="flex items-center justify-between gap-3 text-sm"><span className="opacity-80">Autenticação em 2 fatores</span>{me.totpEnabled ? <span className="chip text-xs">Ativa</span> : <a href="/2fa" className={btn2}>Ativar</a>}</div>}
           <div className="grid gap-3 md:grid-cols-2">
             <PasswordInput className={inp} placeholder="Senha atual" value={pw.current} onChange={(e) => setPw({ ...pw, current: e.target.value })} />
             <PasswordInput className={inp} placeholder="Nova senha (8+, letra, número e símbolo)" value={pw.next} onChange={(e) => setPw({ ...pw, next: e.target.value })} />

@@ -4,6 +4,7 @@ import { useSearchParams } from "next/navigation";
 import { api } from "@/lib/api";
 import { btn, inp } from "@/lib/ui";
 import { useWorkspace } from "@/lib/ws";
+import NoWorkspace from "@/lib/NoWorkspace";
 
 type Msg = { id: string; sender: "CONTACT" | "BOT" | "HUMAN"; direction: "IN" | "OUT"; text: string; createdAt: string };
 type Contact = { id: string; name: string | null; phone: string | null; interest: string | null; tags: string[]; channel: string; botPaused: boolean; leadSentAt: string | null; createdAt: string;
@@ -51,7 +52,7 @@ function Inner() {
     catch (e: any) { setErr(e.message); }
   }
 
-  if (!current) return <p className="p-8 text-sm opacity-60">Selecione um cliente no topo para ver as conversas.</p>;
+  if (!current) return <NoWorkspace what="as conversas" />;
   return (
     <div className="inbox" data-open={open ? "1" : "0"}>
       {/* lista de conversas */}

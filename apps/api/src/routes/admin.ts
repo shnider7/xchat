@@ -36,16 +36,52 @@ export async function adminRoutes(app: FastifyInstance) {
       prisma.usageCounter.aggregate({ where: { month }, _sum: { aiCalls: true, messages: true } }),
       prisma.workspace.count(),
     ]);
+    const monthStart = new Date(new Date().getFullYear(), new Date().getMonth(), 1);
+    const custo = await prisma.usageEvent.aggregate({ where: { createdAt: { gte: monthStart } }, _sum: { costBrl: true } });
+    const notAdmin = { role: { not: "PLATFORM_ADMIN" as const } };
+    const [totalAtivas, aVencer, inativas] = await Promise.all([
+      prisma.user.count({ where: { ...notAdmin, active: true } }),
+      prisma.user.count({ where: { ...notAdmin, active: true, activeUntil: { gte: new Date(), lte: new Date(Date.now() + 7 * 864e5) } } }),
+      prisma.user.count({ where: { ...notAdmin, active: false } }),
+    ]);
     const n = (role: string) => roles.find((r) => r.role === role)?._count ?? 0;
     const sub = (st: string) => subs.find((x) => x.subscriptionStatus === st)?._count ?? 0;
     const precoPlano = Number(process.env.PLAN_PRICE_BRL ?? 49);
     return {
-      kpis: { contas: n("CLIENT"), gestores: n("MANAGER"), workspaces, ativos7d: act7.length, mrr: sub("ATIVA") * precoPlano, precoPlano },
+      kpis: { contas: n("CLIENT") + n("MANAGER"), aVencer, inativas, gestores: n("MANAGER"), workspaces, ativos7d: act7.length, mrr: sub("ATIVA") * precoPlano, precoPlano },
       ativos: rows(ativos), novos: rows(novos), mensagens: rows(msgs),
+      porStatus: [{ name: "Ativas", value: totalAtivas - aVencer }, { name: "A vencer", value: aVencer }, { name: "Desativadas", value: inativas }],
       porTipo: [{ name: "Contas", value: n("CLIENT") }, { name: "Gestores", value: n("MANAGER") }, { name: "Admins", value: n("PLATFORM_ADMIN") }],
       assinaturas: [{ name: "Ativas", value: sub("ATIVA") }, { name: "Canceladas", value: sub("CANCELADA") }],
-      ia: { chamadas: usage._sum.aiCalls ?? 0, mensagens: usage._sum.messages ?? 0 },
+      ia: { chamadas: usage._sum.aiCalls ?? 0, mensagens: usage._sum.messages ?? 0, custoBrl: custo._sum.costBrl ?? 0 },
     };
+  });
+
+  // Lista de contas com e-mail, situação e vencimento. O admin liga/desliga o acesso; o vencimento só avisa.
+  app.get("/admin/users", pre, async (req) => {
+    const f = z.object({ status: z.enum(["all", "active", "inactive", "expiring", "expired"]).default("all"), q: z.string().optional() }).parse(req.query);
+    const now = new Date(), soon = new Date(Date.now() + 7 * 864e5);
+    const base: any = { role: { not: "PLATFORM_ADMIN" } };
+    const by: Record<string, any> = { all: {}, active: { active: true }, inactive: { active: false }, expiring: { active: true, activeUntil: { gte: now, lte: soon } }, expired: { activeUntil: { lt: now } } };
+    const users = await prisma.user.findMany({
+      where: { ...base, ...by[f.status], ...(f.q && { OR: [{ email: { contains: f.q, mode: "insensitive" } }, { name: { contains: f.q, mode: "insensitive" } }] }) },
+      orderBy: { createdAt: "desc" }, take: 500, select: { id: true, email: true, name: true, active: true, activeUntil: true, createdAt: true },
+    });
+    const last = await prisma.auditLog.groupBy({ by: ["userId"], where: { action: "login.ok", userId: { in: users.map((u) => u.id) } }, _max: { createdAt: true } });
+    const counts = Object.fromEntries(await Promise.all(Object.entries(by).map(async ([k, w]) => [k, await prisma.user.count({ where: { ...base, ...w } })])));
+    const lim = await prisma.workspace.findMany({ where: { ownerId: { in: users.map((u) => u.id) } }, select: { ownerId: true, monthlyAiLimit: true } });
+    return { users: users.map((u) => ({ ...u, ultimoAcesso: last.find((l) => l.userId === u.id)?._max.createdAt ?? null, aiLimit: lim.find((w) => w.ownerId === u.id)?.monthlyAiLimit ?? null })), counts };
+  });
+
+  app.patch("/admin/users/:id", pre, async (req, reply) => {
+    const { id } = req.params as { id: string };
+    const b = z.object({ active: z.boolean().optional(), activeUntil: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).nullable().optional(), aiLimit: z.number().int().min(0).max(1000000).optional() }).parse(req.body);
+    const u = await prisma.user.findUniqueOrThrow({ where: { id } });
+    if (u.role === "PLATFORM_ADMIN") return reply.code(400).send({ error: "Contas de admin não são alteradas aqui." });
+    await prisma.user.update({ where: { id }, data: { ...(b.active !== undefined && { active: b.active }), ...(b.activeUntil !== undefined && { activeUntil: b.activeUntil ? new Date(`${b.activeUntil}T23:59:59`) : null }) } });
+    if (b.aiLimit !== undefined) await prisma.workspace.updateMany({ where: { ownerId: id }, data: { monthlyAiLimit: b.aiLimit } });
+    await audit(req, b.active === undefined ? "usuario.vencimento" : b.active ? "usuario.ativado" : "usuario.desativado", undefined, { userId: id });
+    return { ok: true };
   });
 
   app.get("/admin/metrics", pre, async () => ({

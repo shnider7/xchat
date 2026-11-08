@@ -4,7 +4,7 @@ import { prisma } from "../db";
 import { decrypt } from "./crypto";
 import { sendText } from "./evolution";
 import { buildLeadCard, origemText } from "./leadCard";
-import { bump } from "./usage";
+import { bump, recordUsage } from "./usage";
 
 const schema = {
   type: "object",
@@ -28,13 +28,14 @@ type Msg = { role: "user" | "assistant"; content: string };
 
 async function viaAnthropic(apiKey: string, ws: Workspace, msgs: Msg[], onTool: (i: any) => Promise<string>) {
   const client = new Anthropic({ apiKey });
+  const create = async (p: any) => { const r: any = await create(p); await recordUsage(ws, r.usage?.input_tokens ?? 0, r.usage?.output_tokens ?? 0); return r; };
   const tools: Anthropic.Tool[] = [{ name: "salvar_lead", description: TOOL_DESC, input_schema: schema as any }];
   const base = { model: ws.aiModel, max_tokens: 1000, system: ws.aiPrompt, tools };
-  let res = await client.messages.create({ ...base, messages: msgs });
+  let res = await create({ ...base, messages: msgs });
   const tu = res.content.find((c): c is Anthropic.ToolUseBlock => c.type === "tool_use");
   if (res.stop_reason === "tool_use" && tu) {
     const out = await onTool(tu.input);
-    res = await client.messages.create({
+    res = await create({
       ...base,
       messages: [...msgs, { role: "assistant", content: res.content }, { role: "user", content: [{ type: "tool_result", tool_use_id: tu.id, content: out }] }],
     });
@@ -53,7 +54,9 @@ async function viaOpenAI(apiKey: string, ws: Workspace, msgs: Msg[], onTool: (i:
       }),
     });
     if (!r.ok) throw new Error(`OpenAI falhou: ${r.status}`);
-    return (await r.json()).choices[0].message;
+    const j = await r.json();
+    await recordUsage(ws, j.usage?.prompt_tokens ?? 0, j.usage?.completion_tokens ?? 0);
+    return j.choices[0].message;
   };
   let m = await call(msgs);
   if (m.tool_calls?.length) {

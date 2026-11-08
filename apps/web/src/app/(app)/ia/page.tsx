@@ -2,6 +2,7 @@
 import { Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 import { useWorkspace } from "@/lib/ws";
+import NoWorkspace from "@/lib/NoWorkspace";
 import Canais from "./Canais";
 import Chatbots from "./Chatbots";
 import Config from "./Config";
@@ -10,7 +11,7 @@ import Config from "./Config";
 function Inner() {
   const { current } = useWorkspace();
   const aba = useSearchParams().get("aba") ?? "bots";
-  if (!current) return <p className="p-8 text-sm opacity-60">Selecione um cliente no topo para configurar chatbots, IA e canais.</p>;
+  if (!current) return <NoWorkspace what="chatbots, IA e canais" />;
   return <>{aba === "bots" && <Chatbots ws={current} />}{aba === "ia" && <Config />}{aba === "canais" && <Canais ws={current} />}</>;
 }
 export default function IA() { return <Suspense fallback={null}><Inner /></Suspense>; }

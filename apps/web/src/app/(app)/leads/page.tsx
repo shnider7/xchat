@@ -4,6 +4,7 @@ import { useSearchParams } from "next/navigation";
 import { api } from "@/lib/api";
 import { btn2, card, inp } from "@/lib/ui";
 import { useWorkspace } from "@/lib/ws";
+import NoWorkspace from "@/lib/NoWorkspace";
 
 const CANAL: Record<string, string> = { WHATSAPP: "WhatsApp", INSTAGRAM_DM: "Direct", INSTAGRAM_COMMENT: "Comentário" };
 const COLS: [string, string, (c: any) => string][] = [
@@ -39,7 +40,7 @@ function LeadsInner() {
     const a = document.createElement("a"); a.href = URL.createObjectURL(new Blob(["\ufeff" + text], { type: "text/csv" })); a.download = "leads.csv"; a.click();
   }
 
-  if (!current) return <p className="p-8 text-sm opacity-60">Selecione um cliente no topo para ver os leads.</p>;
+  if (!current) return <NoWorkspace what="os leads" />;
   return (
     <div className="space-y-4 p-8">
       <div className="flex flex-wrap items-center gap-2">

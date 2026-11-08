@@ -45,6 +45,8 @@ model User {
   plan               String   @default("TESTE")
   planPeriod         String   @default("MENSAL")
   subscriptionStatus String   @default("ATIVA")
+  active      Boolean   @default(true)
+  activeUntil DateTime?
 }
 
 // Cliente (ou pessoa em uso individual) = 1 workspace
@@ -60,6 +62,9 @@ model Workspace {
   aiPrompt          String   @default("Você é um atendente simpático. Descubra o nome, o telefone e o interesse da pessoa e use a ferramenta salvar_lead quando tiver os três.")
   leadDestination   String?
   leadTemplate      String?
+  ownerId      String?
+  aiBudgetBrl  Int      @default(0)
+  usageEvents  UsageEvent[]
   monthlyAiLimit    Int      @default(2000)
   monthlyMsgLimit   Int      @default(5000)
   createdAt         DateTime @default(now())
@@ -189,4 +194,17 @@ model ManagerInvite {
   status      String    @default("PENDING")
   createdAt   DateTime  @default(now())
   @@unique([workspaceId, managerId])
+}
+
+model UsageEvent {
+  id           String    @id @default(cuid())
+  workspaceId  String
+  workspace    Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  provider     String
+  model        String
+  inputTokens  Int
+  outputTokens Int
+  costBrl      Float
+  createdAt    DateTime  @default(now())
+  @@index([workspaceId, createdAt])
 }

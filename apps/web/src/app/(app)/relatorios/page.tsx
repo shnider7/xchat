@@ -5,6 +5,7 @@ import { api } from "@/lib/api";
 import { DonutChart, LineChart, fillDays } from "@/lib/charts";
 import { card } from "@/lib/ui";
 import { useWorkspace } from "@/lib/ws";
+import NoWorkspace from "@/lib/NoWorkspace";
 
 // O período (7, 30 ou 90 dias) vem do submenu da barra superior: ?dias=7
 function Inner() {
@@ -18,7 +19,7 @@ function Inner() {
     if (current) api(`workspaces/${current.id}/report?days=${days}`).then(setR).catch((e) => setErr(e.message));
   }, [current?.id, days]);
 
-  if (!current) return <p className="p-8 text-sm opacity-60">Selecione um cliente no topo para ver o relatório.</p>;
+  if (!current) return <NoWorkspace what="o relatório" />;
   const m = r?.mensagens ?? {};
   const serie = r ? fillDays(r.porDia, days) : { labels: [], data: [] };
   const kpi = (l: string, v: any) => <div className={card + " lift !p-5"}><div className="text-xs opacity-60">{l}</div><div className="mt-1 text-2xl font-semibold">{v ?? 0}</div></div>;

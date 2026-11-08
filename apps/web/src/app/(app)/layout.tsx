@@ -4,6 +4,7 @@ import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { Suspense, useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { api, getRole } from "@/lib/api";
 import LiquidGlass from "@/lib/LiquidGlass";
+import Splash from "@/lib/Splash";
 import { WorkspaceProvider, useWorkspace } from "@/lib/ws";
 
 const useIso = typeof window !== "undefined" ? useLayoutEffect : useEffect;
@@ -23,6 +24,7 @@ const Icon = ({ n }: { n: string }) => (
 
 // Submenu da barra superior: depende da seção escolhida no menu lateral (a página lê o mesmo parâmetro da URL)
 const SUB: Record<string, [string, string][]> = {
+  "/usuarios": [["Todas", ""], ["Ativas", "s=active"], ["Desativadas", "s=inactive"], ["A vencer", "s=expiring"], ["Vencidas", "s=expired"]],
   "/inbox": [["Todas", ""], ["Direct", "canal=INSTAGRAM_DM"], ["Comentários", "canal=INSTAGRAM_COMMENT"], ["Só leads", "lead=1"]],
   "/leads": [["Todos", ""], ["Hoje", "p=hoje"], ["7 dias", "p=7"], ["30 dias", "p=30"]],
   "/relatorios": [["7 dias", "dias=7"], ["30 dias", ""], ["90 dias", "dias=90"]],
@@ -90,8 +92,35 @@ function Selector() {
   if (list.length < 2) return null;
   return (
     <select value={current?.id ?? ""} onChange={(e) => select(e.target.value)} aria-label="Cliente" className="min-w-[200px] rounded-full border border-black/10 bg-white/40 px-4 py-1.5 text-sm dark:border-white/15 dark:bg-white/5">
-      <option value="">Selecione um cliente…</option>{list.map((w) => <option key={w.id} value={w.id}>{w.name}</option>)}
+      {list.map((w) => <option key={w.id} value={w.id}>{w.own ? `${w.name} (minha conta)` : w.name}</option>)}
     </select>
+  );
+}
+
+const brl = (v: number) => v.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
+// Barrinha do gasto estimado de IA no mês (acima do "Sair")
+function UsageMeter({ collapsed }: { collapsed: boolean }) {
+  const { current } = useWorkspace();
+  const [u, setU] = useState<any>(null);
+  useEffect(() => {
+    if (!current) { setU(null); return; }
+    const load = () => api(`workspaces/${current.id}/ai-usage`).then(setU).catch(() => {});
+    load(); const t = setInterval(load, 60000); window.addEventListener("ai-usage-updated", load);
+    return () => { clearInterval(t); window.removeEventListener("ai-usage-updated", load); };
+  }, [current?.id]);
+  if (!u) return null;
+  const pct = Math.min(100, Math.round(u.orcamentoBrl > 0 ? (u.custoBrl / u.orcamentoBrl) * 100 : (u.respostas / Math.max(1, u.limiteRespostas)) * 100));
+  const color = pct >= 100 ? "#ef4444" : pct >= 80 ? "#f59e0b" : "#3b82f6";
+  const tip = `IA no mês: ${brl(u.custoBrl)} (estimativa) · ${u.respostas} respostas`;
+  const bar = <div className="h-1.5 overflow-hidden rounded-full bg-black/10 dark:bg-white/10"><div className="h-full rounded-full transition-all duration-700" style={{ width: `${pct}%`, background: color }} /></div>;
+  const spark = <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M9.937 15.5A2 2 0 0 0 8.5 14.063l-6.135-1.582a.5.5 0 0 1 0-.962L8.5 9.936A2 2 0 0 0 9.937 8.5l1.582-6.135a.5.5 0 0 1 .963 0L14.063 8.5A2 2 0 0 0 15.5 9.937l6.135 1.581a.5.5 0 0 1 0 .964L15.5 14.063a2 2 0 0 0-1.437 1.437l-1.582 6.135a.5.5 0 0 1-.963 0z" /></svg>;
+  if (collapsed) return <div title={tip} className="mx-auto flex w-10 flex-col items-center gap-1.5 opacity-80">{spark}<div className="w-8">{bar}</div></div>;
+  return (
+    <div title={tip} className="rounded-2xl border border-black/10 p-3 text-xs dark:border-white/10">
+      <div className="flex items-center justify-between"><span className="flex items-center gap-1.5 opacity-70">{spark} IA no mês</span><b className="text-sm">{brl(u.custoBrl)}</b></div>
+      <div className="mt-2">{bar}</div>
+      <div className="mt-1.5 opacity-50">{u.respostas} respostas · {u.orcamentoBrl > 0 ? `meta ${brl(u.orcamentoBrl)}` : `limite ${u.limiteRespostas}`}</div>
+    </div>
   );
 }
 
@@ -100,6 +129,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   const [role, setRole] = useState("");
   const [me, setMe] = useState<any>(null);
   const [collapsed, setCollapsed] = useState(false);
+  const [pending, setPending] = useState(0);
   const loadMe = useCallback(() => { api("me").then(setMe).catch(() => {}); }, []);
 
   useEffect(() => {
@@ -109,19 +139,24 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
     return () => window.removeEventListener("me-updated", loadMe);
   }, [loadMe]);
 
+  useEffect(() => { if (role && role !== "PLATFORM_ADMIN") api("me/invites").then((l: any[]) => setPending(l.filter((i) => i.status === "PENDING").length)).catch(() => {}); }, [role, path]);
+
   function toggleSb() { const c = !collapsed; setCollapsed(c); localStorage.setItem("sb", c ? "1" : "0"); }
   async function sair() { await fetch("/api/logout", { method: "POST" }); r.push("/login"); }
 
   const admin = role === "PLATFORM_ADMIN";
+  const inactive = !!me && !admin && me.active === false;
+  const daysLeft = me?.activeUntil ? Math.ceil((+new Date(me.activeUntil) - Date.now()) / 864e5) : null;
   const nav: [string, string, string][] = admin
-    ? [["/admin", "Visão geral", "grid"], ["/gestores", "Gestores", "users"], ["/perfil", "Perfil", "user"]]
+    ? [["/admin", "Visão geral", "grid"], ["/usuarios", "Usuários", "users"], ["/perfil", "Perfil", "user"]]
     : [["/inbox", "Conversas", "chat"], ["/leads", "Leads", "lead"], ["/relatorios", "Relatórios", "chart"], ["/ia", "IA e chatbot", "bot"], ["/perfil", "Perfil", "user"]];
 
   return (
     <WorkspaceProvider enabled={!!role && !admin}>
       <LiquidGlass />
+      <Splash />
       <div className="flex h-screen gap-3 p-3">
-        <aside className={`glass glass-refract flex shrink-0 flex-col rounded-3xl p-3 transition-[width] duration-300 ${collapsed ? "w-[76px]" : "w-60"}`}>
+        <aside className={`intro-left glass glass-refract flex shrink-0 flex-col rounded-3xl p-3 transition-[width] duration-300 ${collapsed ? "w-[76px]" : "w-60"}`}>
           <div className={`flex items-center py-3 ${collapsed ? "justify-center" : "justify-between px-2"}`}>
             {!collapsed && <span className="text-lg font-semibold">ChatFlow</span>}
             <button onClick={toggleSb} aria-label={collapsed ? "Expandir menu" : "Recolher menu"} className="rounded-lg px-2 py-1 opacity-70 hover:opacity-100">
@@ -131,20 +166,23 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
           <nav className="flex flex-col gap-1">
             {nav.map(([href, label, icon]) => (
               <Link key={href} href={href} title={label} className={`nav-item flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm ${collapsed ? "justify-center" : ""} ${path.startsWith(href) ? "navon font-medium" : "opacity-70"}`}>
-                <Icon n={icon} />{!collapsed && label}
+                <Icon n={icon} />{!collapsed && label}{href === "/perfil" && pending > 0 && <span className={`h-2 w-2 rounded-full bg-blue-500 ${collapsed ? "absolute right-2 top-2" : "ml-auto"}`} />}
               </Link>))}
           </nav>
-          <button onClick={sair} title="Sair" className={`nav-item mt-auto flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm opacity-70 ${collapsed ? "justify-center" : ""}`}><Icon n="out" />{!collapsed && "Sair"}</button>
+          <div className="mt-auto space-y-2">{!admin && <UsageMeter collapsed={collapsed} />}<button onClick={sair} title="Sair" className={`nav-item flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-sm opacity-70 ${collapsed ? "justify-center" : ""}`}><Icon n="out" />{!collapsed && "Sair"}</button></div>
         </aside>
         <div className="flex min-w-0 flex-1 flex-col gap-3">
-          <header className="topbar relative z-30 glass glass-refract flex h-14 shrink-0 items-center gap-4 rounded-2xl px-5">
+          <header className="intro-top topbar relative z-30 glass glass-refract flex h-14 shrink-0 items-center gap-4 rounded-2xl px-5">
             {!admin && <Selector />}
             <Suspense fallback={<div className="flex-1" />}><SubMenu path={path} admin={admin} /></Suspense>
+            {daysLeft !== null && daysLeft <= 7 && !admin && <Link href="/perfil" className="chip whitespace-nowrap text-[11px] text-amber-600 dark:text-amber-300">{daysLeft < 0 ? "Acesso vencido" : daysLeft === 0 ? "Acesso vence hoje" : `Acesso vence em ${daysLeft}d`}</Link>}
             <Link href="/perfil" title={me?.name ?? "Perfil"} className="flex h-9 w-9 shrink-0 items-center justify-center overflow-hidden rounded-full border border-black/10 bg-white/40 text-sm font-medium dark:border-white/15 dark:bg-white/10">
               {me?.avatar ? <img src={me.avatar} alt="" className="h-full w-full object-cover" /> : (me?.name?.[0]?.toUpperCase() ?? "?")}
             </Link>
           </header>
-          <main className="page glass min-h-0 flex-1 overflow-y-auto rounded-3xl">{children}</main>
+          <main className="page glass min-h-0 flex-1 overflow-y-auto rounded-3xl">{inactive && !path.startsWith("/perfil") ? (
+            <div className="flex h-full items-center justify-center p-8 text-center"><div className="max-w-sm space-y-3"><h1 className="text-lg font-semibold">Conta aguardando ativação</h1><p className="text-sm opacity-60">Seu cadastro foi recebido. Assim que a conta for liberada, bots, IA e conversas ficam disponíveis. Você já pode ajustar seu perfil.</p></div></div>
+          ) : children}</main>
         </div>
       </div>
     </WorkspaceProvider>

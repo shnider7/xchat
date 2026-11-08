@@ -3,6 +3,7 @@ import { useCallback, useEffect, useState } from "react";
 import { api } from "@/lib/api";
 import { btn, btn2, card, inp } from "@/lib/ui";
 import { useWorkspace } from "@/lib/ws";
+import ModelPicker from "./ModelPicker";
 
 export default function Config() {
   const { current, reload } = useWorkspace();
@@ -18,8 +19,8 @@ export default function Config() {
 
   async function salvar() {
     try {
-      const { aiEnabled, aiProvider, aiModel, aiPrompt, leadDestination, leadTemplate, evolutionInstance, instagram } = f;
-      await api(`workspaces/${current!.id}`, { method: "PATCH", body: JSON.stringify({ aiEnabled, aiProvider, aiModel, aiPrompt, leadDestination: leadDestination ?? undefined, leadTemplate: leadTemplate ?? undefined, evolutionInstance: evolutionInstance ?? undefined, instagram: instagram ?? undefined }) });
+      const { aiEnabled, aiProvider, aiModel, aiPrompt, leadDestination, leadTemplate, evolutionInstance, instagram, aiBudgetBrl } = f;
+      await api(`workspaces/${current!.id}`, { method: "PATCH", body: JSON.stringify({ aiEnabled, aiProvider, aiModel, aiPrompt, leadDestination: leadDestination ?? undefined, leadTemplate: leadTemplate ?? undefined, evolutionInstance: evolutionInstance ?? undefined, instagram: instagram ?? undefined, aiBudgetBrl: Number(aiBudgetBrl) || 0 }) });
       await reload(); setMsg("Salvo.");
     } catch (e: any) { setMsg(e.message); }
   }
@@ -35,12 +36,13 @@ export default function Config() {
         <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={f.aiEnabled} onChange={set("aiEnabled")} /> Responder automaticamente com IA nas conversas</label>
         <div className="grid grid-cols-2 gap-3">
           <label className={lab}>Provedor<select className={inp} value={f.aiProvider} onChange={set("aiProvider")}><option value="anthropic">Anthropic (Claude)</option><option value="openai">OpenAI</option></select></label>
-          <label className={lab}>Modelo<input className={inp} value={f.aiModel} onChange={set("aiModel")} /></label>
+          <div className={lab}>Modelo<ModelPicker wsId={current.id} provider={f.aiProvider} value={f.aiModel} onChange={(v) => setF({ ...f, aiModel: v })} refresh={creds.length} /></div>
         </div>
         <label className={lab}>Instruções padrão da IA (base para os chatbots e para respostas automáticas)<textarea rows={5} className={inp} value={f.aiPrompt} onChange={set("aiPrompt")} /></label>
         <label className={lab}>Instância da Evolution (só envia avisos de lead; não recebe conversas)<input className={inp} value={f.evolutionInstance ?? ""} onChange={set("evolutionInstance")} /></label>
         <label className={lab}>Destino dos leads (número ou grupo @g.us)<input className={inp} value={f.leadDestination ?? ""} onChange={set("leadDestination")} /></label>
         <label className={lab}>Modelo do cartão de lead ({"{nome} {telefone} {interesse} {data} {link}"})<textarea rows={4} className={inp} value={f.leadTemplate ?? ""} onChange={set("leadTemplate")} /></label>
+        <label className={lab}>Meta mensal de gasto com IA, em R$ (opcional, só alimenta a barrinha do menu)<input type="number" min={0} className={inp} value={f.aiBudgetBrl ?? 0} onChange={(e) => setF({ ...f, aiBudgetBrl: Number(e.target.value) || 0 })} /></label>
         <button onClick={salvar} className={btn}>Salvar</button>{msg && <span className="ml-3 text-sm text-zinc-600">{msg}</span>}
       </div>
       <div className={card + " space-y-3"}>

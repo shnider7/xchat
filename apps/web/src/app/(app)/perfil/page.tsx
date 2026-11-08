@@ -3,6 +3,7 @@ import { Suspense, useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { api } from "@/lib/api";
 import { useWorkspace } from "@/lib/ws";
+import NoWorkspace from "@/lib/NoWorkspace";
 import Canais from "../ia/Canais";
 import Conta from "./Conta";
 import Gestao from "./Gestao";
@@ -18,7 +19,7 @@ function Inner() {
   return (
     <>
       {tab === "conta" && <Conta />}
-      {tab === "instagram" && (current ? <Canais ws={current} /> : <p className="p-8 text-sm opacity-60">Selecione uma conta no topo para conectar o Instagram.</p>)}
+      {tab === "instagram" && (current ? <Canais ws={current} /> : <NoWorkspace what="o Instagram" />)}
       {tab === "gestao" && <Gestao />}
     </>
   );

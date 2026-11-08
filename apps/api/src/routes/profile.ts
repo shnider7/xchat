@@ -9,12 +9,18 @@ import { passwordRule } from "../services/password";
 const GENERIC = "Não foi possível adicionar. Confirme se o email já tem conta na plataforma e se o Instagram dela está conectado.";
 const NEED_IG = process.env.LINK_REQUIRES_INSTAGRAM !== "false"; // "false" só para testes sem Instagram
 
-export async function profileRoutes(app: FastifyInstance) {
-  const mgr = { preHandler: guard(["MANAGER"]) };
-  const cli = { preHandler: guard(["CLIENT"]) };
+// O espaço de trabalho "da própria pessoa" (dono). Contas antigas sem dono usam o primeiro em que são membros.
+const ownWorkspace = (userId: string) => prisma.workspace.findFirst({
+  where: { OR: [{ ownerId: userId }, { ownerId: null, members: { some: { userId } } }] }, orderBy: { createdAt: "asc" }, include: { channels: true },
+});
+const ownedBy = (userId: string) => ({ OR: [{ ownerId: userId }, { ownerId: null, members: { some: { userId } } }] });
 
-  const ME = { id: true, email: true, name: true, username: true, avatar: true, role: true, totpEnabled: true, plan: true, planPeriod: true, subscriptionStatus: true } as const;
-  const auth = { preHandler: guard(undefined, true) };
+export async function profileRoutes(app: FastifyInstance) {
+  const mgr = { preHandler: guard(["MANAGER", "CLIENT"]) };
+  const cli = { preHandler: guard(["MANAGER", "CLIENT"]) };
+
+  const ME = { id: true, email: true, name: true, username: true, avatar: true, role: true, totpEnabled: true, plan: true, planPeriod: true, subscriptionStatus: true, active: true, activeUntil: true } as const;
+  const auth = { preHandler: guard(undefined, true, true) };
 
   app.get("/me", auth, (req) => prisma.user.findUniqueOrThrow({ where: { id: req.user.id }, select: ME }));
 
@@ -72,19 +78,20 @@ export async function profileRoutes(app: FastifyInstance) {
   });
 
   // ---- Gestor: vincular contas já cadastradas (por email). O dono da conta precisa aceitar.
+  // Qualquer conta pode convidar outra conta existente (pelo email). A outra pessoa precisa aceitar.
+  // Para ver conversas de terceiros, quem convida precisa ter o 2FA ativo.
   app.post("/managers/links", { ...mgr, config: { rateLimit: { max: 10, timeWindow: "1 hour" } } }, async (req, reply) => {
+    const me = await prisma.user.findUniqueOrThrow({ where: { id: req.user.id } });
+    if (!me.totpEnabled) return reply.code(403).send({ error: "Ative o 2FA em Perfil > Conta antes de gerenciar outras contas." });
     const { email } = z.object({ email: z.string().email() }).parse(req.body);
-    const target = await prisma.user.findUnique({
-      where: { email: email.toLowerCase() },
-      include: { memberships: { include: { workspace: { include: { channels: true } } } } },
-    });
-    const ws = target?.role === "CLIENT" && target.memberships.length === 1 ? target.memberships[0].workspace : null;
+    const target = await prisma.user.findUnique({ where: { email: email.toLowerCase() } });
+    const ws = target && target.id !== me.id ? await ownWorkspace(target.id) : null;
     if (!ws || (NEED_IG && !ws.channels.some((c) => c.type === "INSTAGRAM"))) return reply.code(400).send({ error: GENERIC });
-    const already = await prisma.membership.findUnique({ where: { userId_workspaceId: { userId: req.user.id, workspaceId: ws.id } } });
+    const already = await prisma.membership.findUnique({ where: { userId_workspaceId: { userId: me.id, workspaceId: ws.id } } });
     if (already) return reply.code(400).send({ error: GENERIC });
     await prisma.managerInvite.upsert({
-      where: { workspaceId_managerId: { workspaceId: ws.id, managerId: req.user.id } },
-      update: { status: "PENDING" }, create: { workspaceId: ws.id, managerId: req.user.id },
+      where: { workspaceId_managerId: { workspaceId: ws.id, managerId: me.id } },
+      update: { status: "PENDING" }, create: { workspaceId: ws.id, managerId: me.id },
     });
     await audit(req, "convite.gestao.enviado", ws.id);
     return { ok: true };
@@ -97,7 +104,7 @@ export async function profileRoutes(app: FastifyInstance) {
     });
     return inv.map((i) => ({
       id: i.id, status: i.status, nome: i.workspace.name,
-      email: i.workspace.members.find((m) => m.user.role === "CLIENT")?.user.email,
+      email: (i.workspace.members.find((m) => m.userId === i.workspace.ownerId) ?? i.workspace.members.find((m) => m.user.role === "CLIENT"))?.user.email,
       instagram: i.workspace.channels.find((c) => c.type === "INSTAGRAM")?.label ?? null,
     }));
   });
@@ -113,14 +120,14 @@ export async function profileRoutes(app: FastifyInstance) {
 
   // ---- Dono da conta: aceitar, recusar ou revogar o acesso de um gestor
   async function mine(userId: string, id: string) {
-    const i = await prisma.managerInvite.findFirst({ where: { id, workspace: { members: { some: { userId } } } } });
+    const i = await prisma.managerInvite.findFirst({ where: { id, workspace: ownedBy(userId) } });
     if (!i) throw Object.assign(new Error("não encontrado"), { statusCode: 404 });
     return i;
   }
 
   app.get("/me/invites", cli, async (req) => {
     const inv = await prisma.managerInvite.findMany({
-      where: { status: { in: ["PENDING", "ACCEPTED"] }, workspace: { members: { some: { userId: req.user.id } } } }, orderBy: { createdAt: "desc" },
+      where: { status: { in: ["PENDING", "ACCEPTED"] }, workspace: ownedBy(req.user.id) }, orderBy: { createdAt: "desc" },
     });
     const users = await prisma.user.findMany({ where: { id: { in: inv.map((i) => i.managerId) } }, select: { id: true, name: true, email: true } });
     return inv.map((i) => { const m = users.find((u) => u.id === i.managerId); return { id: i.id, status: i.status, gestor: m?.name, email: m?.email }; });

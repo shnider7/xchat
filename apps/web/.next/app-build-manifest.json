@@ -21,15 +21,10 @@
       "static/chunks/main-app.js",
       "static/chunks/app/(app)/layout.js"
     ],
-    "/(app)/leads/page": [
+    "/(app)/perfil/page": [
       "static/chunks/webpack.js",
       "static/chunks/main-app.js",
-      "static/chunks/app/(app)/leads/page.js"
-    ],
-    "/(app)/relatorios/page": [
-      "static/chunks/webpack.js",
-      "static/chunks/main-app.js",
-      "static/chunks/app/(app)/relatorios/page.js"
+      "static/chunks/app/(app)/perfil/page.js"
     ],
     "/(app)/ia/page": [
       "static/chunks/webpack.js",
@@ -37,10 +32,15 @@
       "static/css/app/(app)/ia/page.css",
       "static/chunks/app/(app)/ia/page.js"
     ],
-    "/(app)/perfil/page": [
+    "/(app)/relatorios/page": [
       "static/chunks/webpack.js",
       "static/chunks/main-app.js",
-      "static/chunks/app/(app)/perfil/page.js"
+      "static/chunks/app/(app)/relatorios/page.js"
+    ],
+    "/(app)/leads/page": [
+      "static/chunks/webpack.js",
+      "static/chunks/main-app.js",
+      "static/chunks/app/(app)/leads/page.js"
     ]
   }
 }

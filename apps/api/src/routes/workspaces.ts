@@ -10,8 +10,10 @@ export async function workspaceRoutes(app: FastifyInstance) {
   const pre = { preHandler: guard(["MANAGER", "CLIENT"]) };
 
   // Seletor de clientes: só os vinculados ao usuário
-  app.get("/workspaces", pre, (req) =>
-    prisma.workspace.findMany({ where: { members: { some: { userId: req.user.id } } }, orderBy: { name: "asc" } }));
+  app.get("/workspaces", pre, async (req) => {
+    const list = await prisma.workspace.findMany({ where: { members: { some: { userId: req.user.id } } }, orderBy: { name: "asc" } });
+    return list.map((w) => ({ ...w, own: w.ownerId === req.user.id }));
+  });
 
   // Gestor cria o cliente (workspace) e, opcionalmente, a conta de acesso do cliente
   app.post("/workspaces", { preHandler: guard(["MANAGER"]) }, async (req) => {
@@ -43,9 +45,20 @@ export async function workspaceRoutes(app: FastifyInstance) {
       name: z.string().optional(), instagram: z.string().optional(), evolutionInstance: z.string().optional(),
       aiEnabled: z.boolean().optional(), aiProvider: z.enum(["anthropic", "openai"]).optional(), aiModel: z.string().optional(),
       aiPrompt: z.string().optional(), leadDestination: z.string().optional(), leadTemplate: z.string().optional(),
+      aiBudgetBrl: z.number().int().min(0).max(1000000).optional(),
     }).parse(req.body);
     await audit(req, "workspace.editado", id, { campos: Object.keys(data) });
     return prisma.workspace.update({ where: { id }, data });
+  });
+
+  // Consumo de IA do mês (estimativa em R$ pelo uso de tokens)
+  app.get("/workspaces/:id/ai-usage", pre, async (req) => {
+    const { id } = req.params as { id: string };
+    await assertWorkspace(req, id);
+    const ws = await prisma.workspace.findUniqueOrThrow({ where: { id } });
+    const now = new Date(), from = new Date(now.getFullYear(), now.getMonth(), 1);
+    const a = await prisma.usageEvent.aggregate({ where: { workspaceId: id, createdAt: { gte: from } }, _sum: { inputTokens: true, outputTokens: true, costBrl: true }, _count: true });
+    return { respostas: a._count, tokensEntrada: a._sum.inputTokens ?? 0, tokensSaida: a._sum.outputTokens ?? 0, custoBrl: a._sum.costBrl ?? 0, limiteRespostas: ws.monthlyAiLimit, orcamentoBrl: ws.aiBudgetBrl };
   });
 
   // Chats: sempre de UM workspace por vez, com filtros e auditoria

@@ -6,7 +6,7 @@ import { prisma } from "../db";
 import { salvarLead } from "./ai";
 import { decrypt } from "./crypto";
 import { sendText } from "./evolution";
-import { bump, getUsage } from "./usage";
+import { bump, getUsage, recordUsage } from "./usage";
 
 export type GNode = { id: string; type: string; position: { x: number; y: number }; data: any };
 export type GEdge = { id?: string; source: string; sourceHandle?: string | null; target: string };
@@ -176,9 +176,13 @@ export async function aiReply(ws: Workspace, system: string, msgs: Msg[]) {
       method: "POST", headers: { "Content-Type": "application/json", Authorization: `Bearer ${key}` },
       body: JSON.stringify({ model: ws.aiModel, messages: [{ role: "system", content: system }, ...msgs] }),
     });
-    return r.ok ? ((await r.json()).choices?.[0]?.message?.content ?? null) : null;
+    if (!r.ok) return null;
+    const j = await r.json();
+    await recordUsage(ws, j.usage?.prompt_tokens ?? 0, j.usage?.completion_tokens ?? 0);
+    return j.choices?.[0]?.message?.content ?? null;
   }
   const r = await new Anthropic({ apiKey: key }).messages.create({ model: ws.aiModel, max_tokens: 600, system, messages: msgs }).catch(() => null);
+  if (r) await recordUsage(ws, r.usage?.input_tokens ?? 0, r.usage?.output_tokens ?? 0);
   return r?.content.find((b): b is Anthropic.TextBlock => b.type === "text")?.text ?? null;
 }
 
@@ -219,7 +223,7 @@ export async function commentReply(ws: Workspace, g: Graph, text: string): Promi
 }
 
 // Conversa real: continua o chatbot do contato ou inicia o que combina com o gatilho. null = nenhum chatbot.
-export async function handleIncoming(ws: Workspace, contact: Contact, text: string, ev: Ev = { kind: "dm", text }): Promise<string[] | null> {
+export async function handleEvent(ws: Workspace, contact: Contact, text: string, ev: Ev = { kind: "dm", text }): Promise<{ replies: string[]; graph: Graph } | null> {
   let bot = contact.chatbotId ? await prisma.chatbot.findFirst({ where: { id: contact.chatbotId, workspaceId: ws.id, active: true } }) : null;
   let state = contact.flowState as unknown as State | null;
   let input: string | null = text;
@@ -234,5 +238,6 @@ export async function handleIncoming(ws: Workspace, contact: Contact, text: stri
   const info = { channel: contact.channel, source: contact.source ?? "", tags: contact.tags };
   const out = await run(toGraph(bot.nodes), state, input, makeCtx(ws, history, contact.id, info));
   await prisma.contact.update({ where: { id: contact.id }, data: { chatbotId: out.state.done ? null : bot.id, flowState: out.state.done ? Prisma.JsonNull : (out.state as any) } });
-  return out.replies;
+  return { replies: out.replies, graph: toGraph(bot.nodes) };
 }
+export const handleIncoming = async (...a: Parameters<typeof handleEvent>) => (await handleEvent(...a))?.replies ?? null;
